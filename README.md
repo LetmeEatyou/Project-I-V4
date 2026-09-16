@@ -23,7 +23,7 @@ Tasks, completion history, and preferences are stored on the device with AsyncSt
 - Live countdown and active-block progress indicator
 - Previous/next day navigation and a quick return to today
 - Seven-day completion chart, streaks, consistency statistics, and per-block totals
-- Configurable 5–15 minute reminders plus start and completion alerts
+- Configurable 5–15 minute reminders plus start and completion alerts with native actions
 - Time-sensitive notification sound on iOS and a maximum-importance alarm channel on Android
 - iOS Live Activity with a native countdown on the Lock Screen and Dynamic Island on supported iPhones
 - One-tap completion recording after a block ends from a Live Activity or completion notification

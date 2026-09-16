@@ -14,6 +14,7 @@ import { TaskProvider, useTasks } from "@/context/task-context";
 import { syncBlockLiveActivity } from "@/lib/live-activity";
 import { millisecondsUntilNextBlockBoundary } from "@/lib/time";
 import {
+  COMPLETE_BLOCK_ACTION,
   isBlockNotificationData,
   syncUpcomingBlockNotifications,
 } from "@/lib/notifications";
@@ -120,7 +121,11 @@ function SystemEffects() {
         params: {
           taskId: data.taskId,
           date: data.dateKey,
-          action: data.kind === "complete" ? "complete" : undefined,
+          action:
+            data.kind === "complete" ||
+            response.actionIdentifier === COMPLETE_BLOCK_ACTION
+              ? "complete"
+              : undefined,
         },
       });
     };

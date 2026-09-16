@@ -5,6 +5,10 @@ import type { Task } from "@/context/task-context";
 import { blockWindowForDate } from "@/lib/time";
 
 const BLOCK_ALERTS_CHANNEL = "block-alerts-v1";
+const BLOCK_REMINDER_CATEGORY = "block_reminder";
+const BLOCK_START_CATEGORY = "block_start";
+const BLOCK_COMPLETE_CATEGORY = "block_complete";
+export const COMPLETE_BLOCK_ACTION = "complete_block";
 const DAYS_TO_SCHEDULE = 7;
 const MAX_SCHEDULED_NOTIFICATIONS = 60;
 
@@ -55,12 +59,45 @@ async function configureAndroidChannel() {
   });
 }
 
+async function configureNotificationCategories() {
+  if (Platform.OS === "web") return;
+
+  const foregroundAction = (identifier: string, buttonTitle: string) => ({
+    identifier,
+    buttonTitle,
+    options: { opensAppToForeground: true },
+  });
+  const categoryOptions = {
+    previewPlaceholder: "Scheduled block update",
+    categorySummaryFormat: "%u block updates",
+  };
+
+  await Promise.all([
+    Notifications.setNotificationCategoryAsync(
+      BLOCK_REMINDER_CATEGORY,
+      [foregroundAction("review_block", "Review Block")],
+      categoryOptions,
+    ),
+    Notifications.setNotificationCategoryAsync(
+      BLOCK_START_CATEGORY,
+      [foregroundAction("open_timer", "Open Timer")],
+      categoryOptions,
+    ),
+    Notifications.setNotificationCategoryAsync(
+      BLOCK_COMPLETE_CATEGORY,
+      [foregroundAction(COMPLETE_BLOCK_ACTION, "Mark Done")],
+      categoryOptions,
+    ),
+  ]);
+}
+
 function contentForAlert(
   alert: BlockAlert,
 ): Notifications.NotificationContentInput {
   const common = {
     sound: "default" as const,
     interruptionLevel: "timeSensitive" as const,
+    color: "#2947A5",
     data: {
       taskId: alert.taskId,
       dateKey: alert.dateKey,
@@ -71,23 +108,29 @@ function contentForAlert(
   if (alert.kind === "reminder") {
     return {
       ...common,
-      title: `${alert.task.name} starts soon`,
-      body: `Your block begins in ${alert.reminderMinutes} minutes. Tap to review it.`,
+      title: `Starts in ${alert.reminderMinutes} minutes`,
+      subtitle: alert.task.name,
+      body: `${alert.task.startTime}–${alert.task.endTime} · ${alert.task.description}`,
+      categoryIdentifier: BLOCK_REMINDER_CATEGORY,
     };
   }
 
   if (alert.kind === "start") {
     return {
       ...common,
-      title: `${alert.task.name} is starting now`,
-      body: `Focus until ${alert.task.endTime}. The block runs whether or not the app is open.`,
+      title: "Your block starts now",
+      subtitle: alert.task.name,
+      body: `Stay with it until ${alert.task.endTime}. ${alert.task.description}`,
+      categoryIdentifier: BLOCK_START_CATEGORY,
     };
   }
 
   return {
     ...common,
-    title: `${alert.task.name} has ended`,
-    body: "Tap to record whether you completed this block.",
+    title: "Block finished",
+    subtitle: alert.task.name,
+    body: "How did it go? Mark it done to keep your progress current.",
+    categoryIdentifier: BLOCK_COMPLETE_CATEGORY,
   };
 }
 
@@ -148,7 +191,10 @@ export async function syncUpcomingBlockNotifications(
   const permitted = await requestNotificationPermission();
   if (!permitted) return;
 
-  await configureAndroidChannel();
+  await Promise.all([
+    configureAndroidChannel(),
+    configureNotificationCategories(),
+  ]);
   await Notifications.cancelAllScheduledNotificationsAsync();
 
   const channelId =

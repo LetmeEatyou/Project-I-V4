@@ -1,9 +1,10 @@
 export const timeToMinutes = (time: string) => {
-  const [hours, minutes] = time.split(':').map(Number);
+  const [hours, minutes] = time.split(":").map(Number);
   return hours * 60 + minutes;
 };
 
-export const isValidTime = (time: string) => /^([01]\d|2[0-3]):[0-5]\d$/.test(time);
+export const isValidTime = (time: string) =>
+  /^([01]\d|2[0-3]):[0-5]\d$/.test(time);
 
 export const formatClock = (seconds: number) => {
   const safeSeconds = Math.max(0, Math.floor(seconds));
@@ -11,14 +12,18 @@ export const formatClock = (seconds: number) => {
   const minutes = Math.floor((safeSeconds % 3600) / 60);
   const remainingSeconds = safeSeconds % 60;
   return hours > 0
-    ? `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`
-    : `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+    ? `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(remainingSeconds).padStart(2, "0")}`
+    : `${String(minutes).padStart(2, "0")}:${String(remainingSeconds).padStart(2, "0")}`;
+};
+
+export const blockDurationMinutes = (startTime: string, endTime: string) => {
+  const start = timeToMinutes(startTime);
+  const end = timeToMinutes(endTime);
+  return end > start ? end - start : 24 * 60 - start + end;
 };
 
 export const formatDuration = (startTime: string, endTime: string) => {
-  const start = timeToMinutes(startTime);
-  const end = timeToMinutes(endTime);
-  const minutes = end > start ? end - start : (24 * 60 - start) + end;
+  const minutes = blockDurationMinutes(startTime, endTime);
   const hours = Math.floor(minutes / 60);
   const remainder = minutes % 60;
   if (!hours) return `${remainder} min`;
@@ -26,12 +31,40 @@ export const formatDuration = (startTime: string, endTime: string) => {
   return `${hours}.${Math.round(remainder / 6)} hr`;
 };
 
-export const blockWindowForDate = (date: Date, startTime: string, endTime: string) => {
+type TimeRange = { start: number; end: number };
+
+const dailyRanges = (startTime: string, endTime: string): TimeRange[] => {
+  const start = timeToMinutes(startTime);
+  const end = timeToMinutes(endTime);
+  if (start < end) return [{ start, end }];
+  return [
+    { start, end: 24 * 60 },
+    { start: 0, end },
+  ];
+};
+
+export const blocksOverlap = (
+  first: { startTime: string; endTime: string },
+  second: { startTime: string; endTime: string },
+) =>
+  dailyRanges(first.startTime, first.endTime).some((firstRange) =>
+    dailyRanges(second.startTime, second.endTime).some(
+      (secondRange) =>
+        firstRange.start < secondRange.end &&
+        secondRange.start < firstRange.end,
+    ),
+  );
+
+export const blockWindowForDate = (
+  date: Date,
+  startTime: string,
+  endTime: string,
+) => {
   const start = new Date(date);
-  const [startHour, startMinute] = startTime.split(':').map(Number);
+  const [startHour, startMinute] = startTime.split(":").map(Number);
   start.setHours(startHour, startMinute, 0, 0);
   const end = new Date(date);
-  const [endHour, endMinute] = endTime.split(':').map(Number);
+  const [endHour, endMinute] = endTime.split(":").map(Number);
   end.setHours(endHour, endMinute, 0, 0);
   if (end <= start) end.setDate(end.getDate() + 1);
   return { start, end };
@@ -59,7 +92,8 @@ export const millisecondsUntilNextBlockBoundary = (
         block.endTime,
       );
       for (const boundary of [start, end]) {
-        if (boundary > now) nextBoundary = Math.min(nextBoundary, boundary.getTime());
+        if (boundary > now)
+          nextBoundary = Math.min(nextBoundary, boundary.getTime());
       }
     }
   }

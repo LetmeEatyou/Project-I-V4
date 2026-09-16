@@ -1,6 +1,6 @@
 import Feather from "@expo/vector-icons/Feather";
 import * as Haptics from "expo-haptics";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Alert,
   Keyboard,
@@ -14,7 +14,12 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SubtaskInput, Task, useTasks } from "@/context/task-context";
-import { isValidTime } from "@/lib/time";
+import {
+  blocksOverlap,
+  formatDuration,
+  isValidTime,
+  timeToMinutes,
+} from "@/lib/time";
 import { useColors } from "@/hooks/useColors";
 
 export default function TasksScreen() {
@@ -29,6 +34,28 @@ export default function TasksScreen() {
   const [description, setDescription] = useState("");
   const [actionItems, setActionItems] = useState<SubtaskInput[]>([]);
   const [formError, setFormError] = useState("");
+  const orderedTasks = useMemo(
+    () =>
+      [...tasks].sort(
+        (first, second) =>
+          timeToMinutes(first.startTime) - timeToMinutes(second.startTime) ||
+          first.name.localeCompare(second.name),
+      ),
+    [tasks],
+  );
+  const hasValidWindow =
+    isValidTime(startTime) && isValidTime(endTime) && startTime !== endTime;
+  const conflictingTask = hasValidWindow
+    ? tasks.find(
+        (task) =>
+          task.id !== editing?.id &&
+          blocksOverlap(
+            { startTime, endTime },
+            { startTime: task.startTime, endTime: task.endTime },
+          ),
+      )
+    : undefined;
+  const canSave = Boolean(name.trim() && hasValidWindow && !conflictingTask);
 
   const openNew = () => {
     setEditing(null);
@@ -59,6 +86,14 @@ export default function TasksScreen() {
       setFormError(
         "Add a name plus valid times in HH:MM format, for example 05:00.",
       );
+      return;
+    }
+    if (startTime === endTime) {
+      setFormError("Start and end times must be different.");
+      return;
+    }
+    if (conflictingTask) {
+      setFormError(`This overlaps with ${conflictingTask.name}.`);
       return;
     }
     const subtasks = actionItems
@@ -155,7 +190,7 @@ export default function TasksScreen() {
             { backgroundColor: colors.deepCard, borderColor: colors.border },
           ]}
         >
-          {tasks.map((task, index) => (
+          {orderedTasks.map((task, index) => (
             <Pressable
               key={task.id}
               onPress={() => openEdit(task)}
@@ -166,7 +201,7 @@ export default function TasksScreen() {
                   borderBottomColor: colors.border,
                   opacity: pressed ? 0.72 : 1,
                 },
-                index === tasks.length - 1 && styles.lastTask,
+                index === orderedTasks.length - 1 && styles.lastTask,
               ]}
             >
               <View
@@ -281,7 +316,10 @@ export default function TasksScreen() {
             </Text>
             <TextInput
               value={name}
-              onChangeText={setName}
+              onChangeText={(value) => {
+                setName(value);
+                setFormError("");
+              }}
               autoFocus
               placeholder="Fajr Block"
               placeholderTextColor={colors.mutedForeground}
@@ -348,9 +386,49 @@ export default function TasksScreen() {
                 />
               </View>
             </View>
-            <Text style={[styles.helper, { color: colors.mutedForeground }]}>
-              Crossing midnight is supported: 23:00 to 01:00.
-            </Text>
+            {hasValidWindow ? (
+              <View style={styles.scheduleSummary}>
+                <Feather name="clock" size={13} color={colors.primary} />
+                <Text
+                  style={[
+                    styles.scheduleSummaryText,
+                    { color: colors.foreground },
+                  ]}
+                >
+                  {formatDuration(startTime, endTime)} block
+                  {timeToMinutes(endTime) < timeToMinutes(startTime)
+                    ? " · ends next day"
+                    : ""}
+                </Text>
+              </View>
+            ) : (
+              <Text style={[styles.helper, { color: colors.mutedForeground }]}>
+                Crossing midnight is supported: 23:00 to 01:00.
+              </Text>
+            )}
+            {conflictingTask ? (
+              <View
+                style={[
+                  styles.conflictNotice,
+                  {
+                    backgroundColor: colors.secondary,
+                    borderColor: colors.destructive,
+                  },
+                ]}
+              >
+                <Feather
+                  name="alert-circle"
+                  size={14}
+                  color={colors.destructive}
+                />
+                <Text
+                  style={[styles.conflictText, { color: colors.destructive }]}
+                >
+                  Overlaps with {conflictingTask.name} (
+                  {conflictingTask.startTime}–{conflictingTask.endTime})
+                </Text>
+              </View>
+            ) : null}
             <Text
               style={[styles.fieldLabel, { color: colors.mutedForeground }]}
             >
@@ -403,15 +481,11 @@ export default function TasksScreen() {
             <Pressable
               testID="save-task"
               onPress={save}
+              accessibilityState={{ disabled: !canSave }}
               style={({ pressed }) => [
                 styles.saveButton,
                 {
-                  backgroundColor:
-                    name.trim() &&
-                    isValidTime(startTime) &&
-                    isValidTime(endTime)
-                      ? colors.primary
-                      : colors.muted,
+                  backgroundColor: canSave ? colors.primary : colors.muted,
                   opacity: pressed ? 0.76 : 1,
                 },
               ]}
@@ -420,12 +494,9 @@ export default function TasksScreen() {
                 style={[
                   styles.saveText,
                   {
-                    color:
-                      name.trim() &&
-                      isValidTime(startTime) &&
-                      isValidTime(endTime)
-                        ? colors.primaryForeground
-                        : colors.mutedForeground,
+                    color: canSave
+                      ? colors.primaryForeground
+                      : colors.mutedForeground,
                   },
                 ]}
               >
@@ -613,6 +684,35 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     marginTop: -5,
     marginBottom: 14,
+  },
+  scheduleSummary: {
+    minHeight: 34,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    marginTop: -5,
+    marginBottom: 14,
+  },
+  scheduleSummaryText: {
+    fontSize: 10,
+    fontFamily: "Inter_600SemiBold",
+  },
+  conflictNotice: {
+    minHeight: 42,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    marginTop: -4,
+    marginBottom: 14,
+  },
+  conflictText: {
+    flex: 1,
+    fontSize: 10,
+    lineHeight: 14,
+    fontFamily: "Inter_500Medium",
   },
   actionArea: {
     minHeight: 84,

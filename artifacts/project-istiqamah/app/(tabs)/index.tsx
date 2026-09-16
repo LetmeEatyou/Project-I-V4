@@ -13,7 +13,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { dateKey, useTasks } from "@/context/task-context";
-import { blockWindowForDate, formatClock } from "@/lib/time";
+import { blockWindowForDate, formatClock, timeToMinutes } from "@/lib/time";
 import { finishBlockLiveActivity } from "@/lib/live-activity";
 
 const monthNames = [
@@ -54,6 +54,15 @@ export default function TodayScreen() {
   const handledRoute = useRef("");
   const handledCompletion = useRef("");
   const selectedKey = dateKey(selectedDate);
+  const orderedTasks = useMemo(
+    () =>
+      [...tasks].sort(
+        (first, second) =>
+          timeToMinutes(first.startTime) - timeToMinutes(second.startTime) ||
+          first.name.localeCompare(second.name),
+      ),
+    [tasks],
+  );
   const completedCount = tasks.filter((task) =>
     task.completedDates.includes(selectedKey),
   ).length;
@@ -64,7 +73,7 @@ export default function TodayScreen() {
     typeof routeParams.taskId === "string"
       ? tasks.find((task) => task.id === routeParams.taskId)
       : undefined;
-  const incompleteSchedules = tasks
+  const incompleteSchedules = orderedTasks
     .filter((task) => !task.completedDates.includes(selectedKey))
     .map((task) => ({
       task,
@@ -224,7 +233,7 @@ export default function TodayScreen() {
         <View style={styles.header}>
           <View>
             <Text style={[styles.title, { color: colors.foreground }]}>
-              Project I
+              Project Istiqamah
             </Text>
           </View>
         </View>
@@ -495,7 +504,7 @@ export default function TodayScreen() {
             { backgroundColor: colors.deepCard, borderColor: colors.border },
           ]}
         >
-          {tasks.map((task, index) => {
+          {orderedTasks.map((task, index) => {
             const completed = task.completedDates.includes(selectedKey);
             return (
               <Pressable
@@ -511,7 +520,7 @@ export default function TodayScreen() {
                       : colors.deepCard,
                     opacity: pressed ? 0.76 : 1,
                   },
-                  index === tasks.length - 1 && styles.lastRow,
+                  index === orderedTasks.length - 1 && styles.lastRow,
                 ]}
               >
                 <View
