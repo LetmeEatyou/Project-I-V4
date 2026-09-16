@@ -1,4 +1,4 @@
-import { Feather } from '@expo/vector-icons';
+import Feather from '@expo/vector-icons/Feather';
 import React from 'react';
 import { Alert, Linking, Platform, Pressable, ScrollView, Share, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -34,7 +34,7 @@ export default function SettingsScreen() {
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <SettingRow icon="volume-2" title="Haptic feedback" description="A small response when you log a task." colors={colors} value={preferences.haptics} onValueChange={(value) => setPreference('haptics', value)} />
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
-          <SettingRow icon="bell" title="Reminders" description="Local reminders will be added next." colors={colors} value={preferences.reminders} onValueChange={(value) => setPreference('reminders', value)} />
+          <SettingRow icon="bell" title="Reminders" description="Notify you before each upcoming block." colors={colors} value={preferences.reminders} onValueChange={(value) => setPreference('reminders', value)} />
         </View>
 
         <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>IOS FOCUS DATA</Text>
@@ -52,7 +52,7 @@ export default function SettingsScreen() {
         <Text style={[styles.backupNote, { color: colors.mutedForeground }]}>Automatic iCloud restore is a native iOS follow-up. iOS clears an app&apos;s local storage when the app is deleted.</Text>
 
         <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>ABOUT</Text>
-        <View style={[styles.about, { borderColor: colors.border }]}><Text style={[styles.aboutName, { color: colors.foreground }]}>Project Istiqamah</Text><Text style={[styles.aboutCopy, { color: colors.mutedForeground }]}>A private practice of showing up, one block at a time.</Text><View style={styles.versionRow}><Text style={[styles.version, { color: colors.mutedForeground }]}>VERSION</Text><Text style={[styles.versionValue, { color: colors.foreground }]}>0.1.0</Text></View></View>
+        <View style={[styles.about, { borderColor: colors.border }]}><Text style={[styles.aboutName, { color: colors.foreground }]}>Project Istiqamah</Text><Text style={[styles.aboutCopy, { color: colors.mutedForeground }]}>A private practice of showing up, one block at a time.</Text><View style={styles.versionRow}><Text style={[styles.version, { color: colors.mutedForeground }]}>VERSION</Text><Text style={[styles.versionValue, { color: colors.foreground }]}>1.0.0</Text></View></View>
       </ScrollView>
     </View>
   );
