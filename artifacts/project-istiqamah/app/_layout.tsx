@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Inter_400Regular } from "@expo-google-fonts/inter/400Regular";
@@ -31,16 +31,54 @@ function RootLayoutNav() {
 
 function SystemEffects() {
   const { tasks, preferences, isReady } = useTasks();
+  const notificationSync = useRef<{
+    running: boolean;
+    mounted: boolean;
+    pending: null | {
+      tasks: typeof tasks;
+      reminderMinutes: number;
+      reminders: boolean;
+    };
+  }>({ running: false, mounted: true, pending: null });
+
+  useEffect(() => {
+    const state = notificationSync.current;
+    state.mounted = true;
+    return () => {
+      state.mounted = false;
+      state.pending = null;
+    };
+  }, []);
 
   useEffect(() => {
     if (!isReady) return;
-    const timeout = setTimeout(() => {
-      syncUpcomingBlockNotifications(
-        tasks,
-        preferences.reminderMinutes,
-        preferences.reminders,
-      ).catch(() => undefined);
-    }, 250);
+    const state = notificationSync.current;
+    state.pending = {
+      tasks,
+      reminderMinutes: preferences.reminderMinutes,
+      reminders: preferences.reminders,
+    };
+
+    const runLatest = async () => {
+      if (!state.mounted || state.running || !state.pending) return;
+      const snapshot = state.pending;
+      state.pending = null;
+      state.running = true;
+      try {
+        await syncUpcomingBlockNotifications(
+          snapshot.tasks,
+          snapshot.reminderMinutes,
+          snapshot.reminders,
+        );
+      } catch {
+        // Notification permissions and scheduling failures must not block the app.
+      } finally {
+        state.running = false;
+        if (state.mounted && state.pending) void runLatest();
+      }
+    };
+
+    const timeout = setTimeout(() => void runLatest(), 250);
     return () => clearTimeout(timeout);
   }, [isReady, preferences.reminderMinutes, preferences.reminders, tasks]);
 
