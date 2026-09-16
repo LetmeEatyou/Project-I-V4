@@ -395,11 +395,11 @@ export default function TasksScreen() {
                 },
               ]}
             />
-            {formError && (
+            {formError ? (
               <Text style={[styles.errorText, { color: colors.destructive }]}>
                 {formError}
               </Text>
-            )}
+            ) : null}
             <Pressable
               testID="save-task"
               onPress={save}
