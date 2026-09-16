@@ -1,3 +1,78 @@
+name: Build unsigned iOS IPA
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-ipa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-ios:
+    name: Build unsigned IPA
+    runs-on: macos-26
+    timeout-minutes: 60
+
+    env:
+      CI: "true"
+      APP_DIR: artifacts/project-istiqamah
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 10.34.5
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: artifacts/project-istiqamah/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type-check app
+        run: pnpm --filter @workspace/project-istiqamah run typecheck
+
+      - name: Generate native iOS project
+        working-directory: ${{ env.APP_DIR }}
+        run: pnpm exec expo prebuild --platform ios --clean --no-install
+
+      - name: Install CocoaPods
+        working-directory: ${{ env.APP_DIR }}/ios
+        run: pod install --repo-update
+
+      - name: Build unsigned device app
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          set -euo pipefail
+
+          rm -rf build
+
+          xcodebuild \
+            -workspace ios/ProjectIstiqamah.xcworkspace \
+            -scheme ProjectIstiqamah \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath "$PWD/build/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            clean build
+
       - name: Package and verify IPA
         working-directory: ${{ env.APP_DIR }}
         run: |
