@@ -113,18 +113,7 @@ struct TodayView: View {
             Text(item.block.name)
                 .font(.title2.weight(.semibold))
                 .lineLimit(2)
-            Group {
-                if phase == .running {
-                    Text(
-                        timerInterval: item.start...item.end,
-                        pauseTime: item.end,
-                        countsDown: true,
-                        showsHours: true
-                    )
-                } else {
-                    Text(DateTools.clock(seconds: remaining))
-                }
-            }
+            Text(DateTools.clock(seconds: remaining))
                 .font(.system(size: 46, weight: .regular, design: .monospaced))
                 .monospacedDigit()
                 .contentTransition(.numericText(countsDown: true))

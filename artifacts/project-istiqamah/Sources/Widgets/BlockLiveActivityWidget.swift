@@ -109,25 +109,43 @@ struct BlockLiveActivityWidget: Widget {
             .accessibilityLabel("Time remaining")
     }
 
+    @ViewBuilder
     private func countdown(_ context: ActivityViewContext<BlockActivityAttributes>) -> some View {
-        Text(
-            timerInterval: context.state.startDate...context.state.endDate,
-            pauseTime: context.state.endDate,
-            countsDown: true,
-            showsHours: true
-        )
-        .monospacedDigit()
-        .contentTransition(.numericText(countsDown: true))
-        .lineLimit(1)
+        if context.isStale {
+            Text("00:00")
+                .monospacedDigit()
+                .lineLimit(1)
+        } else {
+            Text(context.state.endDate, style: .timer)
+                .monospacedDigit()
+                .lineLimit(1)
+        }
     }
 
     private func flame(size: CGFloat) -> some View {
         ZStack {
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            .yellow.opacity(0.5),
+                            .orange.opacity(0.3),
+                            .red.opacity(0.12),
+                            .clear
+                        ],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: size
+                    )
+                )
+                .frame(width: size * 1.9, height: size * 1.9)
+                .blur(radius: max(2, size * 0.12))
+
             Image(systemName: "flame.fill")
-                .font(.system(size: size * 1.18, weight: .bold))
-                .foregroundStyle(Color.orange.opacity(0.7))
-                .blur(radius: max(2, size * 0.16))
-                .symbolEffect(.pulse, options: .repeating.speed(0.65))
+                .font(.system(size: size * 1.24, weight: .bold))
+                .foregroundStyle(Color.orange.opacity(0.85))
+                .blur(radius: max(2, size * 0.14))
+                .symbolEffect(.pulse, options: .repeating.speed(0.55))
 
             Image(systemName: "flame.fill")
                 .font(.system(size: size, weight: .semibold))
@@ -139,10 +157,17 @@ struct BlockLiveActivityWidget: Widget {
                     )
                 )
                 .shadow(color: .yellow.opacity(0.8), radius: 2)
-                .shadow(color: .orange.opacity(0.75), radius: 5)
-                .symbolEffect(.variableColor.iterative, options: .repeating.speed(0.7))
+                .shadow(color: .orange.opacity(0.85), radius: 6)
+                .symbolEffect(.variableColor.iterative, options: .repeating.speed(0.62))
+
+            Image(systemName: "flame.fill")
+                .font(.system(size: size * 0.48, weight: .bold))
+                .foregroundStyle(.yellow.opacity(0.95))
+                .offset(y: size * 0.14)
+                .blur(radius: 0.35)
         }
         .frame(width: size * 1.55, height: size * 1.55)
+        .compositingGroup()
         .accessibilityElement(children: .ignore)
             .accessibilityLabel("Active focus block")
     }
