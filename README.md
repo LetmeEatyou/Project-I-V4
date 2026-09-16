@@ -16,25 +16,32 @@ The native application lives in [`artifacts/project-istiqamah`](artifacts/projec
 - XcodeGen project definition committed as `project.json`
 - No Expo, React Native, JavaScript bundle, CocoaPods, account, or backend
 
-## Features
+## What works now
 
-- Create, edit, and delete daily time blocks
-- Validated 24-hour start and end times, including blocks crossing midnight
-- Up to five checklist actions per block
-- Completion tracking for any selected date
-- Native live countdown and active-block progress
-- Previous/next day navigation and quick return to today
-- Correct seven-day totals, consistency, streaks, and per-block totals
-- Configurable 5–15 minute time-sensitive notifications
-- Selectable reminder sounds with an in-app test notification
-- Native iOS Live Activities on the Lock Screen and Dynamic Island
-- Expanded Dynamic Island with remaining time on the left and animated flame on
-  the right
-- Scheduled Live Activity starts on iOS 26, even when the app is backgrounded
-- Live Activity and notification deep links that open the relevant block
-- Optional haptic feedback
-- JSON backup export through the native share sheet
-- System dark appearance
+| Area | Implemented behavior |
+| --- | --- |
+| App navigation | Native SwiftUI tabs for Today, Blocks, Progress, and Settings |
+| Block planning | Create, edit, and delete blocks with a name, note, validated 24-hour start/end times, overnight ranges, and up to five checklist actions |
+| Daily view | Previous/next-day navigation, return to today, automatic selection of the running or next block, a one-second countdown, and progress through the active block |
+| Completion | Mark blocks and individual actions complete after their start time; completion is stored separately for each date |
+| Progress | Seven-day chart, completed-block total, practiced-day count, consistency percentage, current streak, and per-block completion totals |
+| Reminders | Time-sensitive alerts before a block, when it starts, and when it ends; the early reminder is configurable to 5, 10, or 15 minutes |
+| Reminder sounds | System Default, Gentle Chime, Bright Bell, and Focus Pulse choices, plus a two-second in-app test reminder |
+| Live Activities | Starts or updates the current block, removes completed or outdated activities, schedules upcoming starts on iOS 26, and provides status, refresh, and restart controls in Settings |
+| Dynamic Island | Compact countdown, expanded remaining-time region on the left, running block in the center, animated native flame on the right, and an Open app link |
+| Lock Screen | Block name, schedule, live countdown, completion prompt after the block ends, and tap-to-open behavior |
+| Deep links | Notification and Live Activity taps open the Today tab on the relevant date and block; an ended-block link can record completion |
+| Local data | Codable JSON persistence in Application Support, preservation of an unreadable data file for recovery, and exclusion of private app data from device/iCloud backup |
+| Preferences | Reminder toggle, reminder timing, sound choice, haptic toggle, notification permission status, and shortcut to iOS Settings |
+| Backup | Pretty-printed JSON export through the native share sheet |
+| CI package | Manual or version-tag GitHub Action builds the app and embedded Live Activity extension into an unsigned IPA |
+
+The code and project configuration for these behaviors are present. The JSON
+project definition, property lists, embedded widget target, sound resources,
+and unsigned-IPA workflow can be checked without launching the app. A complete
+runtime check of notifications, Lock Screen presentation, and Dynamic Island
+presentation requires a signed build on a physical iPhone with notification
+and Live Activity permissions enabled.
 
 ## Build requirements
 
@@ -78,6 +85,9 @@ unsigned IPA artifact. See [`docs/github-actions-ios.md`](docs/github-actions-io
 - Scheduled Live Activity starts require iOS 26. On iOS 18–25, the current
   block starts its Live Activity whenever the app is active and notifications
   remain the background fallback.
+- Dynamic Island is available only on supported iPhone models. The flame is an
+  animated native SF Symbol, not a bundled GIF.
+- An unsigned IPA must be signed before it can be installed on an iPhone.
 - The app exports backups but does not import them yet.
 - Repeat schedules, weekday selection, snooze, templates, tags, search, and
   archives are not implemented.
