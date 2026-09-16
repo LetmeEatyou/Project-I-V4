@@ -36,3 +36,35 @@ export const blockWindowForDate = (date: Date, startTime: string, endTime: strin
   if (end <= start) end.setDate(end.getDate() + 1);
   return { start, end };
 };
+
+type ScheduledBlock = { startTime: string; endTime: string };
+
+export const millisecondsUntilNextBlockBoundary = (
+  blocks: ScheduledBlock[],
+  now = new Date(),
+) => {
+  if (!blocks.length) return 60 * 60 * 1000;
+
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  let nextBoundary = Number.POSITIVE_INFINITY;
+
+  for (const day of [yesterday, now, tomorrow]) {
+    for (const block of blocks) {
+      const { start, end } = blockWindowForDate(
+        day,
+        block.startTime,
+        block.endTime,
+      );
+      for (const boundary of [start, end]) {
+        if (boundary > now) nextBoundary = Math.min(nextBoundary, boundary.getTime());
+      }
+    }
+  }
+
+  return Number.isFinite(nextBoundary)
+    ? Math.max(250, nextBoundary - now.getTime() + 100)
+    : 60 * 60 * 1000;
+};

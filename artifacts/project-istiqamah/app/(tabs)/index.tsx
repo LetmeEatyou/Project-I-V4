@@ -186,11 +186,14 @@ export default function TodayScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
       <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
+        alwaysBounceVertical={false}
+        bounces={false}
+        contentInsetAdjustmentBehavior="never"
+        overScrollMode="never"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.container,
-          { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 110 },
+          { paddingTop: insets.top + 16, paddingBottom: 92 },
         ]}
       >
         <View style={styles.header}>
@@ -878,7 +881,7 @@ const styles = StyleSheet.create({
   footer: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 52,
+    marginTop: 24,
     paddingHorizontal: 4,
   },
   footerText: { fontSize: 8, fontFamily: "Inter_700Bold", letterSpacing: 1.4 },
