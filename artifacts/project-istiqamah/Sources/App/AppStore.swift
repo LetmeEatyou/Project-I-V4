@@ -137,6 +137,7 @@ final class AppStore: ObservableObject {
     func refreshSystemFeatures() {
         let currentBlocks = blocks
         let currentPreferences = preferences
+        BackgroundRefreshManager.shared.schedule(blocks: currentBlocks)
         refreshGeneration &+= 1
         let generation = refreshGeneration
         Task { [weak self] in

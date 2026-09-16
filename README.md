@@ -10,6 +10,7 @@ The native application lives in [`artifacts/project-istiqamah`](artifacts/projec
 
 - SwiftUI application and navigation
 - ActivityKit and WidgetKit Live Activity extension
+- BackgroundTasks refresh for best-effort system wakeups
 - Codable JSON persistence in Application Support
 - UserNotifications reminders, start alerts, and completion alerts
 - Charts-based seven-day progress dashboard
@@ -28,6 +29,7 @@ The native application lives in [`artifacts/project-istiqamah`](artifacts/projec
 | Reminders | Time-sensitive alerts before a block, when it starts, and when it ends; the early reminder is configurable to 5, 10, or 15 minutes |
 | Reminder sounds | System Default, Gentle Chime, Bright Bell, and Focus Pulse choices, plus a two-second in-app test reminder |
 | Live Activities | Starts or updates the current block, removes completed or outdated activities, schedules upcoming starts on iOS 26, and provides status, refresh, and restart controls in Settings |
+| Background refresh | Reloads saved blocks during system-granted background time, refreshes notifications and Live Activities, and schedules the next best-effort wakeup near a block transition |
 | Dynamic Island | Compact countdown, expanded remaining-time region on the left, running block in the center, animated native flame on the right, and an Open app link |
 | Lock Screen | Block name, schedule, live countdown, completion prompt after the block ends, and tap-to-open behavior |
 | Deep links | Notification and Live Activity taps open the Today tab on the relevant date and block; an ended-block link can record completion |
@@ -85,6 +87,12 @@ unsigned IPA artifact. See [`docs/github-actions-ios.md`](docs/github-actions-io
 - Scheduled Live Activity starts require iOS 26. On iOS 18–25, the current
   block starts its Live Activity whenever the app is active and notifications
   remain the background fallback.
+- iOS does not allow this app to run continuously. Background App Refresh is
+  system-controlled and may run later than requested or not run at all, so it
+  cannot guarantee an exact Live Activity start.
+- Immediate WhatsApp-style remote updates require an APNs provider and backend.
+  This local-first app has no account or server, so it does not register or
+  upload push tokens.
 - Dynamic Island is available only on supported iPhone models. The flame is an
   animated native SF Symbol, not a bundled GIF.
 - An unsigned IPA must be signed before it can be installed on an iPhone.

@@ -41,8 +41,12 @@
               "CFBundleURLSchemes": ["project-istiqamah"]
             }
           ],
+          "BGTaskSchedulerPermittedIdentifiers": [
+            "com.projectistiqamah.app.refresh"
+          ],
           "NSSupportsLiveActivities": true,
           "NSSupportsLiveActivitiesFrequentUpdates": true,
+          "UIBackgroundModes": ["fetch"],
           "UILaunchScreen": {},
           "UIApplicationSceneManifest": {
             "UIApplicationSupportsMultipleScenes": false

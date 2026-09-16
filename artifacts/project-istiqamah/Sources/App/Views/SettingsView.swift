@@ -8,6 +8,7 @@ struct SettingsView: View {
     @State private var backupURL: URL?
     @State private var backupError: String?
     @State private var notificationStatus = "Checking…"
+    @State private var backgroundRefreshStatus = "Checking…"
 
     var body: some View {
         NavigationStack {
@@ -32,7 +33,11 @@ struct SettingsView: View {
                     Label("Dynamic Island & Lock Screen", systemImage: "flame.fill")
                         .foregroundStyle(AppTheme.flame)
                     LabeledContent("Status", value: store.liveActivityStatus)
+                    LabeledContent("Background refresh", value: backgroundRefreshStatus)
                     Text("ActivityKit schedules upcoming blocks on iOS 26 and starts the current block when the app is active on earlier supported versions.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("iOS chooses when background refresh runs, so notifications remain the reliable fallback for exact block times.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Button("Refresh Live Activities") {
@@ -95,7 +100,10 @@ struct SettingsView: View {
             .scrollContentBackground(.hidden)
             .background(AppTheme.background)
             .navigationTitle("Settings")
-            .task { await loadNotificationStatus() }
+            .task {
+                await loadNotificationStatus()
+                loadBackgroundRefreshStatus()
+            }
         }
     }
 
@@ -128,6 +136,15 @@ struct SettingsView: View {
         case .denied: "Denied"
         case .notDetermined: "Not requested"
         case .ephemeral: "Temporary"
+        @unknown default: "Unknown"
+        }
+    }
+
+    private func loadBackgroundRefreshStatus() {
+        backgroundRefreshStatus = switch UIApplication.shared.backgroundRefreshStatus {
+        case .available: "Available"
+        case .denied: "Disabled"
+        case .restricted: "Restricted"
         @unknown default: "Unknown"
         }
     }
