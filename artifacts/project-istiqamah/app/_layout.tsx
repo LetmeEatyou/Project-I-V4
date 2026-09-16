@@ -6,9 +6,16 @@ import { Inter_500Medium } from "@expo-google-fonts/inter/500Medium";
 import { Inter_600SemiBold } from "@expo-google-fonts/inter/600SemiBold";
 import { Inter_700Bold } from "@expo-google-fonts/inter/700Bold";
 import { useFonts } from "expo-font";
-import { Stack } from "expo-router";
+import * as Notifications from "expo-notifications";
+import { router, Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { TaskProvider } from "@/context/task-context";
+import { AppState, Platform } from "react-native";
+import { TaskProvider, useTasks } from "@/context/task-context";
+import { syncBlockLiveActivity } from "@/lib/live-activity";
+import {
+  isBlockNotificationData,
+  syncUpcomingBlockNotifications,
+} from "@/lib/notifications";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -19,6 +26,69 @@ function RootLayoutNav() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
     </Stack>
   );
+}
+
+function SystemEffects() {
+  const { tasks, preferences, isReady } = useTasks();
+
+  useEffect(() => {
+    if (!isReady) return;
+    const timeout = setTimeout(() => {
+      syncUpcomingBlockNotifications(
+        tasks,
+        preferences.reminderMinutes,
+        preferences.reminders,
+      ).catch(() => undefined);
+    }, 250);
+    return () => clearTimeout(timeout);
+  }, [isReady, preferences.reminderMinutes, preferences.reminders, tasks]);
+
+  useEffect(() => {
+    if (!isReady) return;
+    const sync = () => syncBlockLiveActivity(tasks).catch(() => undefined);
+    sync();
+    const interval = setInterval(sync, 15_000);
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") sync();
+    });
+    return () => {
+      clearInterval(interval);
+      subscription.remove();
+    };
+  }, [isReady, tasks]);
+
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+
+    const openBlock = (response: Notifications.NotificationResponse) => {
+      const data = response.notification.request.content.data;
+      if (!isBlockNotificationData(data)) return;
+      router.replace({
+        pathname: "/",
+        params: {
+          taskId: data.taskId,
+          date: data.dateKey,
+          action: data.kind === "complete" ? "complete" : undefined,
+        },
+      });
+    };
+
+    Notifications.getLastNotificationResponseAsync()
+      .then((response) => {
+        if (response) {
+          openBlock(response);
+          Notifications.clearLastNotificationResponseAsync().catch(
+            () => undefined,
+          );
+        }
+      })
+      .catch(() => undefined);
+    const subscription =
+      Notifications.addNotificationResponseReceivedListener(openBlock);
+    return () => subscription.remove();
+  }, []);
+
+  return null;
 }
 
 export default function RootLayout() {
@@ -41,6 +111,7 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <ErrorBoundary>
         <TaskProvider>
+          <SystemEffects />
           <RootLayoutNav />
         </TaskProvider>
       </ErrorBoundary>

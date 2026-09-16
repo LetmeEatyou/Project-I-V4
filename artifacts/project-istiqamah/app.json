@@ -21,7 +21,7 @@
     "web": {
       "favicon": "./assets/images/icon.png"
     },
-    "plugins": ["expo-router", "expo-notifications"],
+    "plugins": ["expo-router", "expo-notifications", "expo-widgets"],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
