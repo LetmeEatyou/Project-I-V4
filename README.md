@@ -30,7 +30,7 @@ The native application lives in [`artifacts/project-istiqamah`](artifacts/projec
 | Reminder sounds | System Default, Gentle Chime, Bright Bell, and Focus Pulse choices, plus a two-second in-app test reminder |
 | Live Activities | Starts or updates the current block, removes completed or outdated activities, schedules upcoming starts on iOS 26, and provides status, refresh, and restart controls in Settings |
 | Background refresh | Reloads saved blocks during system-granted background time, refreshes notifications and Live Activities, and schedules the next best-effort wakeup near a block transition |
-| Dynamic Island | Compact countdown, expanded remaining-time region on the left, running block in the center, animated native flame on the right, and an Open app link |
+| Dynamic Island | Compact real-time countdown capsule, expanded remaining-time region on the left, running block in the center, layered glowing native flame on the right, and an Open app link |
 | Lock Screen | Block name, schedule, live countdown, completion prompt after the block ends, and tap-to-open behavior |
 | Deep links | Notification and Live Activity taps open the Today tab on the relevant date and block; an ended-block link can record completion |
 | Local data | Codable JSON persistence in Application Support, preservation of an unreadable data file for recovery, and exclusion of private app data from device/iCloud backup |

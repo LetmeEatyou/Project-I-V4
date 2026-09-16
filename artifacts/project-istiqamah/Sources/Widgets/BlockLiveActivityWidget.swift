@@ -46,15 +46,7 @@ struct BlockLiveActivityWidget: Widget {
             } compactLeading: {
                 flame(size: 16)
             } compactTrailing: {
-                Text(
-                    timerInterval: context.state.startDate...context.state.endDate,
-                    pauseTime: context.state.endDate,
-                    countsDown: true,
-                    showsHours: true
-                )
-                .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                .monospacedDigit()
-                .frame(maxWidth: 62)
+                compactTimer(context)
             } minimal: {
                 flame(size: 15)
             }
@@ -78,13 +70,8 @@ struct BlockLiveActivityWidget: Widget {
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 5) {
-                Text(
-                    timerInterval: context.state.startDate...context.state.endDate,
-                    pauseTime: context.state.endDate,
-                    countsDown: true,
-                    showsHours: true
-                )
-                .font(.title3.monospacedDigit().weight(.semibold))
+                countdown(context)
+                    .font(.title3.monospacedDigit().weight(.semibold))
                 Text(context.isStale ? "Tap to record" : "Tap to open")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -95,26 +82,68 @@ struct BlockLiveActivityWidget: Widget {
 
     private func remainingTimer(_ context: ActivityViewContext<BlockActivityAttributes>) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(
-                timerInterval: context.state.startDate...context.state.endDate,
-                pauseTime: context.state.endDate,
-                countsDown: true,
-                showsHours: true
-            )
-            .font(.system(size: 14, weight: .semibold, design: .monospaced))
-            .monospacedDigit()
-            .lineLimit(1)
+            countdown(context)
+                .font(.system(size: 14, weight: .semibold, design: .monospaced))
             Text(context.isStale ? "ENDED" : "REMAINING")
                 .font(.system(size: 8, weight: .bold))
                 .foregroundStyle(.indigo)
         }
     }
 
+    private func compactTimer(_ context: ActivityViewContext<BlockActivityAttributes>) -> some View {
+        countdown(context)
+            .font(.system(size: 11, weight: .bold, design: .monospaced))
+            .minimumScaleFactor(0.72)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .background {
+                Capsule()
+                    .fill(Color.orange.opacity(0.16))
+            }
+            .overlay {
+                Capsule()
+                    .stroke(Color.orange.opacity(0.55), lineWidth: 0.7)
+            }
+            .shadow(color: .orange.opacity(0.4), radius: 3)
+            .frame(maxWidth: 64)
+            .accessibilityLabel("Time remaining")
+    }
+
+    private func countdown(_ context: ActivityViewContext<BlockActivityAttributes>) -> some View {
+        Text(
+            timerInterval: context.state.startDate...context.state.endDate,
+            pauseTime: context.state.endDate,
+            countsDown: true,
+            showsHours: true
+        )
+        .monospacedDigit()
+        .contentTransition(.numericText(countsDown: true))
+        .lineLimit(1)
+    }
+
     private func flame(size: CGFloat) -> some View {
-        Image(systemName: "flame.fill")
-            .font(.system(size: size))
-            .foregroundStyle(.orange)
-            .symbolEffect(.variableColor.iterative, options: .repeating.speed(0.7))
+        ZStack {
+            Image(systemName: "flame.fill")
+                .font(.system(size: size * 1.18, weight: .bold))
+                .foregroundStyle(Color.orange.opacity(0.7))
+                .blur(radius: max(2, size * 0.16))
+                .symbolEffect(.pulse, options: .repeating.speed(0.65))
+
+            Image(systemName: "flame.fill")
+                .font(.system(size: size, weight: .semibold))
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [.yellow, .orange, .red],
+                        startPoint: .bottom,
+                        endPoint: .top
+                    )
+                )
+                .shadow(color: .yellow.opacity(0.8), radius: 2)
+                .shadow(color: .orange.opacity(0.75), radius: 5)
+                .symbolEffect(.variableColor.iterative, options: .repeating.speed(0.7))
+        }
+        .frame(width: size * 1.55, height: size * 1.55)
+        .accessibilityElement(children: .ignore)
             .accessibilityLabel("Active focus block")
     }
 }
