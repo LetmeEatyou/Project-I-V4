@@ -33,10 +33,11 @@ function BlockLiveActivity(
   const end = new Date(props.endTimestamp);
   const foreground = environment.isLuminanceReduced ? "#D1D1D1" : "#FFFFFF";
   const secondary = environment.isLuminanceReduced ? "#8A8A8A" : "#A7A7A7";
-  const accent = environment.isLuminanceReduced ? "#FFFFFF" : "#8EA8FF";
+  const accent = environment.isLuminanceReduced ? "#FFFFFF" : "#FF8A4C";
   const status = environment.isStale
-    ? "BLOCK ENDED · TAP TO RECORD"
-    : "BLOCK RUNNING";
+    ? "BLOCK ENDED · READY TO RECORD"
+    : "FOCUS SESSION · IN PROGRESS";
+  const symbol = environment.isStale ? "checkmark.circle.fill" : "flame.fill";
 
   return {
     banner: (
@@ -93,7 +94,7 @@ function BlockLiveActivity(
         </VStack>
       </HStack>
     ),
-    compactLeading: <Image systemName="timer" color={accent} size={15} />,
+    compactLeading: <Image systemName={symbol} color={accent} size={16} />,
     compactTrailing: (
       <Text
         timerInterval={{ lower: start, upper: end }}
@@ -106,17 +107,17 @@ function BlockLiveActivity(
         ]}
       />
     ),
-    minimal: <Image systemName="timer" color={accent} size={14} />,
+    minimal: <Image systemName={symbol} color={accent} size={15} />,
     expandedLeading: (
       <VStack alignment="leading" spacing={4} modifiers={[padding({ all: 8 })]}>
-        <Image systemName="timer" color={accent} size={19} />
+        <Image systemName={symbol} color={accent} size={20} />
         <Text
           modifiers={[
             font({ size: 10, weight: "bold" }),
             foregroundStyle(accent),
           ]}
         >
-          LIVE
+          {environment.isStale ? "DONE" : "FOCUS"}
         </Text>
       </VStack>
     ),
@@ -128,7 +129,7 @@ function BlockLiveActivity(
       >
         <Text
           modifiers={[
-            font({ size: 15, weight: "semibold" }),
+            font({ size: 16, weight: "semibold" }),
             foregroundStyle(foreground),
             lineLimit(1),
           ]}
@@ -147,7 +148,7 @@ function BlockLiveActivity(
         pauseTime={end}
         modifiers={[
           padding({ all: 8 }),
-          font({ size: 14, weight: "semibold", design: "monospaced" }),
+          font({ size: 16, weight: "semibold", design: "monospaced" }),
           monospacedDigit(),
           foregroundStyle(foreground),
         ]}
@@ -161,11 +162,13 @@ function BlockLiveActivity(
             foregroundStyle(secondary),
           ]}
         >
-          Finished your block?
+          {environment.isStale
+            ? "Finished your block?"
+            : "Stay with this block — you’re on track."}
         </Text>
         <Spacer />
         <Link
-          label="Record complete"
+          label={environment.isStale ? "Record complete" : "Open block"}
           destination={props.deepLink}
           modifiers={[
             font({ size: 11, weight: "semibold" }),

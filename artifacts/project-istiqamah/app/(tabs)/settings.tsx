@@ -135,8 +135,8 @@ export default function SettingsScreen() {
               ]}
             >
               At the target time, an active block shows a live countdown on
-              supported iPhones. Tap it after the block ends to record
-              completion.
+              supported iPhones. Hold the Dynamic Island to expand it; tapping
+              opens the app.
             </Text>
             <Text style={[styles.nativeNote, { color: colors.primary }]}>
               REQUIRES A NATIVE IOS BUILD · NOT EXPO GO
