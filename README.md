@@ -26,6 +26,7 @@ The native application lives in [`artifacts/project-istiqamah`](artifacts/projec
 - Previous/next day navigation and quick return to today
 - Correct seven-day totals, consistency, streaks, and per-block totals
 - Configurable 5–15 minute time-sensitive notifications
+- Selectable reminder sounds with an in-app test notification
 - Native iOS Live Activities on the Lock Screen and Dynamic Island
 - Expanded Dynamic Island with remaining time on the left and animated flame on
   the right
@@ -67,9 +68,8 @@ unsigned IPA artifact. See [`docs/github-actions-ios.md`](docs/github-actions-io
 | `artifacts/project-istiqamah/Sources/Shared` | Activity attributes shared with the widget extension |
 | `artifacts/project-istiqamah/Sources/Widgets` | Native WidgetKit and Dynamic Island UI |
 | `artifacts/project-istiqamah/Config` | Generated app and extension property-list paths |
+| `artifacts/project-istiqamah/Resources/Sounds` | Bundled Linear PCM reminder sounds |
 | `artifacts/project-istiqamah/project.json` | XcodeGen project source of truth |
-| `artifacts/api-server` | Separate starter API; unused by the iOS app |
-| `artifacts/mockup-sandbox` | Separate web mockup; unused by the iOS app |
 
 ## Current limitations and next work
 
@@ -87,9 +87,9 @@ unsigned IPA artifact. See [`docs/github-actions-ios.md`](docs/github-actions-io
 
 ## Data and privacy
 
-Task content and preferences stay in the app's Application Support directory.
-The iOS app does not send this information to the included API starter. Data
-leaves the device only when the user explicitly shares an exported backup.
+Task content and preferences stay in the app's Application Support directory,
+which is excluded from device and iCloud backups. Data leaves the device only
+when the user explicitly shares an exported backup.
 
 ## License
 

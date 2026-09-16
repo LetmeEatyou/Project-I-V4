@@ -10,13 +10,24 @@ enum DateTools {
     }
 
     static func date(from key: String) -> Date? {
-        let values = key.split(separator: "-").compactMap { Int($0) }
-        guard values.count == 3 else { return nil }
-        return Calendar.current.date(from: DateComponents(
-            year: values[0],
-            month: values[1],
-            day: values[2]
-        ))
+        let parts = key.split(separator: "-", omittingEmptySubsequences: false)
+        guard key.count == 10,
+              parts.count == 3,
+              parts[0].count == 4,
+              parts[1].count == 2,
+              parts[2].count == 2,
+              let year = Int(parts[0]),
+              let month = Int(parts[1]),
+              let day = Int(parts[2]),
+              let date = Calendar.current.date(from: DateComponents(
+                  year: year,
+                  month: month,
+                  day: day
+              )),
+              self.key(date) == key else {
+            return nil
+        }
+        return date
     }
 
     static func minutes(_ time: String) -> Int? {

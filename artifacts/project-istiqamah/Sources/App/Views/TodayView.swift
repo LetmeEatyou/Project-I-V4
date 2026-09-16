@@ -94,6 +94,7 @@ struct TodayView: View {
 
     private func focusCard(_ item: ScheduledBlock) -> some View {
         let phase = phase(for: item)
+        let completed = item.block.completedDates.contains(item.dateKey)
         let remaining = phase == .upcoming ? item.start.timeIntervalSince(now) : item.end.timeIntervalSince(now)
         let duration = max(1, item.end.timeIntervalSince(item.start))
         let progress = phase == .running ? max(0, min(1, now.timeIntervalSince(item.start) / duration)) : phase == .ended ? 1 : 0
@@ -121,12 +122,12 @@ struct TodayView: View {
                 Text("\(item.block.startTime) – \(item.block.endTime)")
                     .foregroundStyle(AppTheme.muted)
                 Spacer()
-                Button(item.block.completedDates.contains(item.dateKey) ? "Completed" : "Mark complete") {
+                Button(completed ? "Completed" : "Mark complete") {
                     store.toggleBlock(item.block.id, dateKey: item.dateKey)
-                    Task { await LiveActivityManager.shared.finish(blockID: item.block.id, dateKey: item.dateKey) }
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(AppTheme.primary)
+                .disabled(now < item.start && !completed)
             }
             .font(.caption)
         }
@@ -159,6 +160,7 @@ struct TodayView: View {
                         .padding(.vertical, 10)
                     }
                     .buttonStyle(.plain)
+                    .disabled(now < item.start && !completed)
                 }
             }
             .padding(18)
@@ -168,7 +170,7 @@ struct TodayView: View {
 
     private var dayList: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("TODAY'S SYSTEM")
+            Text(isToday ? "TODAY'S SYSTEM" : "SELECTED DAY'S SYSTEM")
                 .font(.caption2.bold())
                 .tracking(1.4)
                 .foregroundStyle(AppTheme.muted)

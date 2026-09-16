@@ -8,27 +8,48 @@ final class AppStore: ObservableObject {
     @Published var preferences: AppPreferences
     @Published var selectedDate = Date()
     @Published private(set) var requestedBlockID: UUID?
+    @Published private(set) var liveActivityStatus = "Checking…"
+    @Published private(set) var notificationTestStatus: String?
 
     private let storageURL: URL
+    private var refreshGeneration = 0
 
     init() {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         let directory = support.appendingPathComponent("ProjectIstiqamah", isDirectory: true)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try? (directory as NSURL).setResourceValue(true, forKey: .isExcludedFromBackupKey)
         storageURL = directory.appendingPathComponent("data.json")
 
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        if let data = try? Data(contentsOf: storageURL),
-           let snapshot = try? decoder.decode(AppSnapshot.self, from: data) {
-            blocks = snapshot.blocks
-            preferences = snapshot.preferences
+        let needsInitialPersist: Bool
+        if FileManager.default.fileExists(atPath: storageURL.path) {
+            do {
+                let data = try Data(contentsOf: storageURL)
+                let snapshot = try decoder.decode(AppSnapshot.self, from: data)
+                blocks = snapshot.blocks
+                preferences = snapshot.preferences
+                needsInitialPersist = false
+            } catch {
+                blocks = Self.seedBlocks
+                preferences = AppPreferences()
+                let unreadableURL = directory
+                    .appendingPathComponent("data-unreadable-\(UUID().uuidString).json")
+                needsInitialPersist = (try? FileManager.default.moveItem(
+                    at: storageURL,
+                    to: unreadableURL
+                )) != nil
+            }
         } else {
             blocks = Self.seedBlocks
             preferences = AppPreferences()
+            needsInitialPersist = true
         }
         requestedBlockID = nil
-        persist()
+        if needsInitialPersist {
+            persist()
+        }
     }
 
     func add(_ block: FocusBlock) {
@@ -52,6 +73,7 @@ final class AppStore: ObservableObject {
         if blocks[index].completedDates.contains(dateKey) {
             blocks[index].completedDates.remove(dateKey)
         } else {
+            guard canRecordCompletion(for: blocks[index], dateKey: dateKey) else { return }
             blocks[index].completedDates.insert(dateKey)
             haptic(.success)
         }
@@ -64,6 +86,7 @@ final class AppStore: ObservableObject {
         if blocks[blockIndex].actions[actionIndex].completedDates.contains(dateKey) {
             blocks[blockIndex].actions[actionIndex].completedDates.remove(dateKey)
         } else {
+            guard canRecordCompletion(for: blocks[blockIndex], dateKey: dateKey) else { return }
             blocks[blockIndex].actions[actionIndex].completedDates.insert(dateKey)
             haptic(.light)
         }
@@ -114,15 +137,54 @@ final class AppStore: ObservableObject {
     func refreshSystemFeatures() {
         let currentBlocks = blocks
         let currentPreferences = preferences
-        Task {
-            await NotificationManager.shared.sync(blocks: currentBlocks, preferences: currentPreferences)
-            await LiveActivityManager.shared.sync(blocks: currentBlocks)
+        refreshGeneration &+= 1
+        let generation = refreshGeneration
+        Task { [weak self] in
+            async let notificationSync: Void = NotificationManager.shared.sync(
+                blocks: currentBlocks,
+                preferences: currentPreferences
+            )
+            async let activitySync = LiveActivityManager.shared.sync(blocks: currentBlocks)
+            let report = await activitySync
+            if let self, let report, generation == self.refreshGeneration {
+                self.liveActivityStatus = report.message
+            }
+            _ = await notificationSync
+        }
+    }
+
+    func restartLiveActivity() {
+        let currentBlocks = blocks
+        liveActivityStatus = "Restarting…"
+        refreshGeneration &+= 1
+        let generation = refreshGeneration
+        Task { [weak self] in
+            let report = await LiveActivityManager.shared.restart(blocks: currentBlocks)
+            guard let self, let report, generation == self.refreshGeneration else { return }
+            self.liveActivityStatus = report.message
+        }
+    }
+
+    func sendTestReminder() {
+        let currentPreferences = preferences
+        notificationTestStatus = "Scheduling…"
+        Task { [weak self] in
+            let message = await NotificationManager.shared.sendTest(preferences: currentPreferences)
+            self?.notificationTestStatus = message
         }
     }
 
     private func changed() {
         persist()
         refreshSystemFeatures()
+    }
+
+    private func canRecordCompletion(for block: FocusBlock, dateKey: String) -> Bool {
+        guard let date = DateTools.date(from: dateKey),
+              let window = DateTools.window(for: block, on: date) else {
+            return false
+        }
+        return Date() >= window.start
     }
 
     private func persist() {

@@ -22,6 +22,9 @@
       "sources": [
         { "path": "Sources/App" },
         { "path": "Sources/Shared" },
+        { "path": "Resources/Sounds/gentle-chime.wav", "buildPhase": "resources" },
+        { "path": "Resources/Sounds/bright-bell.wav", "buildPhase": "resources" },
+        { "path": "Resources/Sounds/focus-pulse.wav", "buildPhase": "resources" },
         { "path": "assets/images/icon.png", "buildPhase": "resources" }
       ],
       "dependencies": [

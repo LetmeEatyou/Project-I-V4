@@ -6,6 +6,7 @@ struct SettingsView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.openURL) private var openURL
     @State private var backupURL: URL?
+    @State private var backupError: String?
     @State private var notificationStatus = "Checking…"
 
     var body: some View {
@@ -20,16 +21,25 @@ struct SettingsView: View {
                         in: 5...15,
                         step: 5
                     )
+                    Picker("Reminder sound", selection: reminderSoundBinding) {
+                        ForEach(ReminderSound.allCases) { sound in
+                            Text(sound.title).tag(sound)
+                        }
+                    }
                 }
 
                 Section("Live blocks") {
                     Label("Dynamic Island & Lock Screen", systemImage: "flame.fill")
                         .foregroundStyle(AppTheme.flame)
+                    LabeledContent("Status", value: store.liveActivityStatus)
                     Text("ActivityKit schedules upcoming blocks on iOS 26 and starts the current block when the app is active on earlier supported versions.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Button("Refresh Live Activities") {
                         store.refreshSystemFeatures()
+                    }
+                    Button("Restart current Live Activity") {
+                        store.restartLiveActivity()
                     }
                 }
 
@@ -40,16 +50,35 @@ struct SettingsView: View {
                             openURL(url)
                         }
                     }
+                    Button("Send test reminder", systemImage: "speaker.wave.2") {
+                        store.sendTestReminder()
+                    }
+                    if let notificationTestStatus = store.notificationTestStatus {
+                        Text(notificationTestStatus)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 Section("Your data") {
                     Button("Prepare JSON backup", systemImage: "square.and.arrow.up") {
-                        backupURL = try? store.exportBackup()
+                        do {
+                            backupURL = try store.exportBackup()
+                            backupError = nil
+                        } catch {
+                            backupURL = nil
+                            backupError = "Backup failed: \(error.localizedDescription)"
+                        }
                     }
                     if let backupURL {
                         ShareLink(item: backupURL) {
                             Label("Share backup", systemImage: "paperplane")
                         }
+                    }
+                    if let backupError {
+                        Text(backupError)
+                            .font(.caption)
+                            .foregroundStyle(.red)
                     }
                     Text("Data is stored privately in the app's Application Support directory.")
                         .font(.caption)
@@ -81,6 +110,13 @@ struct SettingsView: View {
         Binding(
             get: { store.preferences.reminderMinutes },
             set: { value in store.updatePreferences { $0.reminderMinutes = value } }
+        )
+    }
+
+    private var reminderSoundBinding: Binding<ReminderSound> {
+        Binding(
+            get: { store.preferences.reminderSound },
+            set: { value in store.updatePreferences { $0.reminderSound = value } }
         )
     }
 
