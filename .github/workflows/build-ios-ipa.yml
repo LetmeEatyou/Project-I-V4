@@ -35,7 +35,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
@@ -78,10 +78,22 @@ jobs:
 
           app_path="build/DerivedData/Build/Products/Release-iphoneos/ProjectIstiqamah.app"
           ipa_path="build/ProjectIstiqamah-unsigned.ipa"
+          widget_path="$app_path/PlugIns/ExpoWidgetsTarget.appex"
+          bundle_path="$app_path/main.jsbundle"
 
           if [[ ! -d "$app_path" ]]; then
             echo "Expected app was not produced at $app_path" >&2
             find build/DerivedData/Build/Products -maxdepth 3 -type d -name "*.app" -print
+            exit 1
+          fi
+
+          if [[ ! -d "$widget_path" ]]; then
+            echo "Expected Live Activity extension was not embedded at $widget_path" >&2
+            exit 1
+          fi
+
+          if [[ ! -s "$bundle_path" ]]; then
+            echo "Expected production JavaScript bundle was not produced at $bundle_path" >&2
             exit 1
           fi
 
