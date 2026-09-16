@@ -61,7 +61,7 @@ type TaskContextValue = {
 const TASKS_KEY = "istiqamah.tasks.v2";
 const PREFERENCES_KEY = "istiqamah.preferences.v2";
 export const MIN_REMINDER_MINUTES = 5;
-export const MAX_REMINDER_MINUTES = 165;
+export const MAX_REMINDER_MINUTES = 15;
 
 const normalizeReminderMinutes = (value: unknown) => {
   if (typeof value !== "number" || !Number.isFinite(value))

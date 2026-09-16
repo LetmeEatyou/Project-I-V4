@@ -93,10 +93,14 @@ export default function TasksScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
       <ScrollView
+        alwaysBounceVertical={false}
+        bounces={false}
+        contentInsetAdjustmentBehavior="never"
+        overScrollMode="never"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.container,
-          { paddingTop: insets.top + 22, paddingBottom: insets.bottom + 110 },
+          { paddingTop: insets.top + 22, paddingBottom: 92 },
         ]}
       >
         <View style={styles.header}>

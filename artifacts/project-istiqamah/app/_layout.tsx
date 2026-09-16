@@ -12,6 +12,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { AppState, Platform } from "react-native";
 import { TaskProvider, useTasks } from "@/context/task-context";
 import { syncBlockLiveActivity } from "@/lib/live-activity";
+import { millisecondsUntilNextBlockBoundary } from "@/lib/time";
 import {
   isBlockNotificationData,
   syncUpcomingBlockNotifications,
@@ -45,14 +46,27 @@ function SystemEffects() {
 
   useEffect(() => {
     if (!isReady) return;
-    const sync = () => syncBlockLiveActivity(tasks).catch(() => undefined);
-    sync();
-    const interval = setInterval(sync, 15_000);
+    let boundaryTimeout: ReturnType<typeof setTimeout> | undefined;
+    let stopped = false;
+    const sync = async () => {
+      await syncBlockLiveActivity(tasks).catch(() => undefined);
+      if (stopped) return;
+      boundaryTimeout = setTimeout(
+        sync,
+        millisecondsUntilNextBlockBoundary(tasks),
+      );
+    };
+    const syncNow = () => {
+      if (boundaryTimeout) clearTimeout(boundaryTimeout);
+      sync();
+    };
+    syncNow();
     const subscription = AppState.addEventListener("change", (state) => {
-      if (state === "active") sync();
+      if (state === "active") syncNow();
     });
     return () => {
-      clearInterval(interval);
+      stopped = true;
+      if (boundaryTimeout) clearTimeout(boundaryTimeout);
       subscription.remove();
     };
   }, [isReady, tasks]);

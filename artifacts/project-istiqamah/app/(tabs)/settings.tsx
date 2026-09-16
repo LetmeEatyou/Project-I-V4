@@ -50,10 +50,14 @@ export default function SettingsScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
       <ScrollView
+        alwaysBounceVertical={false}
+        bounces={false}
+        contentInsetAdjustmentBehavior="never"
+        overScrollMode="never"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.container,
-          { paddingTop: insets.top + 22, paddingBottom: insets.bottom + 110 },
+          { paddingTop: insets.top + 22, paddingBottom: 92 },
         ]}
       >
         <Text style={[styles.eyebrow, { color: colors.mutedForeground }]}>
@@ -130,8 +134,9 @@ export default function SettingsScreen() {
                 { color: colors.mutedForeground },
               ]}
             >
-              Active blocks appear as a Live Activity on supported iPhones. Tap
-              it to open the block and record completion.
+              At the target time, an active block shows a live countdown on
+              supported iPhones. Tap it after the block ends to record
+              completion.
             </Text>
             <Text style={[styles.nativeNote, { color: colors.primary }]}>
               REQUIRES A NATIVE IOS BUILD · NOT EXPO GO
@@ -312,7 +317,7 @@ function ReminderLeadTime({
         <Text
           style={[styles.settingDescription, { color: colors.mutedForeground }]}
         >
-          Sound an alert this long before every block.
+          Choose 5, 10, or 15 minutes before every block.
         </Text>
       </View>
       <View style={styles.stepper}>
