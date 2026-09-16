@@ -14,6 +14,11 @@ export type Subtask = {
   completedDates: string[];
 };
 
+export type SubtaskInput = {
+  id?: string;
+  name: string;
+};
+
 export type Task = {
   id: string;
   name: string;
@@ -39,7 +44,7 @@ type TaskContextValue = {
     startTime: string,
     endTime: string,
     description: string,
-    subtaskNames: string[],
+    subtasks: SubtaskInput[],
   ) => void;
   updateTask: (
     id: string,
@@ -47,7 +52,7 @@ type TaskContextValue = {
     startTime: string,
     endTime: string,
     description: string,
-    subtaskNames: string[],
+    subtasks: SubtaskInput[],
   ) => void;
   deleteTask: (id: string) => void;
   toggleTask: (id: string, dateKey: string) => void;
@@ -175,7 +180,7 @@ const taskWithSubtasks = (
   startTime: string,
   endTime: string,
   description: string,
-  subtaskNames: string[],
+  subtaskInputs: SubtaskInput[],
   existingSubtasks: Subtask[] = [],
 ): Task => ({
   id,
@@ -183,14 +188,16 @@ const taskWithSubtasks = (
   startTime: startTime.trim(),
   endTime: endTime.trim(),
   description: description.trim() || "Make room for what matters.",
-  subtasks: subtaskNames
-    .map((subtaskName, index) => {
-      const previous = existingSubtasks[index];
+  subtasks: subtaskInputs
+    .map((subtaskInput, index) => {
+      const previous = subtaskInput.id
+        ? existingSubtasks.find((subtask) => subtask.id === subtaskInput.id)
+        : undefined;
       return {
         id:
           previous?.id ??
           `subtask-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 6)}`,
-        name: subtaskName.trim(),
+        name: subtaskInput.name.trim(),
         completedDates: previous?.completedDates ?? [],
       };
     })
@@ -209,44 +216,52 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    Promise.all([
+    const loadTasks = Promise.all([
       AsyncStorage.getItem(TASKS_KEY),
       AsyncStorage.getItem("istiqamah.tasks.v1"),
+    ])
+      .then(([storedTasks, oldTasks]) => {
+        const source = storedTasks ?? oldTasks;
+        if (!source) return seedTasks();
+        const parsed = JSON.parse(source) as unknown;
+        if (!Array.isArray(parsed)) throw new Error("Invalid stored tasks");
+        return parsed.map((task) =>
+          migrateTask(
+            task as Partial<Task> & {
+              target?: string;
+              childTasks?: Array<{
+                id?: string;
+                name: string;
+                completedDates?: string[];
+              }>;
+            },
+          ),
+        );
+      })
+      .catch(() => seedTasks());
+
+    const loadPreferences = Promise.all([
       AsyncStorage.getItem(PREFERENCES_KEY),
       AsyncStorage.getItem("istiqamah.preferences.v1"),
     ])
-      .then(([storedTasks, oldTasks, storedPreferences, oldPreferences]) => {
-        const source = storedTasks ?? oldTasks;
-        setTasks(
-          source
-            ? (JSON.parse(source) as unknown[]).map((task) =>
-                migrateTask(
-                  task as Partial<Task> & {
-                    target?: string;
-                    childTasks?: Array<{
-                      id?: string;
-                      name: string;
-                      completedDates?: string[];
-                    }>;
-                  },
-                ),
-              )
-            : seedTasks(),
-        );
+      .then(([storedPreferences, oldPreferences]) => {
         if (storedPreferences)
-          setPreferences(
-            migratePreferences(
-              JSON.parse(storedPreferences) as Partial<Preferences>,
-            ),
+          return migratePreferences(
+            JSON.parse(storedPreferences) as Partial<Preferences>,
           );
-        else if (oldPreferences)
-          setPreferences(
-            migratePreferences(
-              JSON.parse(oldPreferences) as Partial<Preferences>,
-            ),
+        if (oldPreferences)
+          return migratePreferences(
+            JSON.parse(oldPreferences) as Partial<Preferences>,
           );
+        return migratePreferences();
       })
-      .catch(() => setTasks(seedTasks()))
+      .catch(() => migratePreferences());
+
+    Promise.all([loadTasks, loadPreferences])
+      .then(([loadedTasks, loadedPreferences]) => {
+        setTasks(loadedTasks);
+        setPreferences(loadedPreferences);
+      })
       .finally(() => setIsReady(true));
   }, []);
 
@@ -269,7 +284,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     startTime: string,
     endTime: string,
     description: string,
-    subtaskNames: string[],
+    subtasks: SubtaskInput[],
   ) => {
     setTasks((current) => [
       ...current,
@@ -279,7 +294,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
         startTime,
         endTime,
         description,
-        subtaskNames,
+        subtasks,
       ),
     ]);
   };
@@ -290,7 +305,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     startTime: string,
     endTime: string,
     description: string,
-    subtaskNames: string[],
+    subtasks: SubtaskInput[],
   ) => {
     setTasks((current) =>
       current.map((task) =>
@@ -302,7 +317,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
                 startTime,
                 endTime,
                 description,
-                subtaskNames,
+                subtasks,
                 task.subtasks,
               ),
               completedDates: task.completedDates,

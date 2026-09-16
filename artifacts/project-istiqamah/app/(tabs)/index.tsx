@@ -64,8 +64,28 @@ export default function TodayScreen() {
     typeof routeParams.taskId === "string"
       ? tasks.find((task) => task.id === routeParams.taskId)
       : undefined;
+  const incompleteSchedules = tasks
+    .filter((task) => !task.completedDates.includes(selectedKey))
+    .map((task) => ({
+      task,
+      window: blockWindowForDate(selectedDate, task.startTime, task.endTime),
+    }));
+  const runningTask = incompleteSchedules
+    .filter(({ window }) => window.start <= timerNow && timerNow < window.end)
+    .sort(
+      (first, second) =>
+        first.window.start.getTime() - second.window.start.getTime(),
+    )[0]?.task;
+  const upcomingTask = incompleteSchedules
+    .filter(({ window }) => window.start > timerNow)
+    .sort(
+      (first, second) =>
+        first.window.start.getTime() - second.window.start.getTime(),
+    )[0]?.task;
   const focusTask =
     requestedTask ??
+    runningTask ??
+    upcomingTask ??
     tasks.find((task) => !task.completedDates.includes(selectedKey)) ??
     tasks[0];
   const isToday = dateKey(new Date()) === selectedKey;
@@ -130,7 +150,12 @@ export default function TodayScreen() {
     if (handledCompletion.current === completionKey) return;
     const task = tasks.find((candidate) => candidate.id === routeParams.taskId);
     const taskDate = new Date(`${routeParams.date}T00:00:00`);
-    if (!task || Number.isNaN(taskDate.getTime())) return;
+    if (
+      !task ||
+      Number.isNaN(taskDate.getTime()) ||
+      dateKey(taskDate) !== routeParams.date
+    )
+      return;
     const { end } = blockWindowForDate(taskDate, task.startTime, task.endTime);
     if (new Date() < end) return;
     handledCompletion.current = completionKey;
