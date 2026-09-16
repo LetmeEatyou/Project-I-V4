@@ -1,47 +1,32 @@
-# Building the iOS IPA with GitHub Actions
+# Build the unsigned iOS IPA
 
-The project is an Expo React Native app. The workflow at
-`.github/workflows/build-ios-ipa.yml` generates the native iOS project, installs
-CocoaPods, archives it with Xcode on a macOS runner, and uploads a signed
-ad hoc `.ipa` as a GitHub Actions artifact.
+The workflow in `.github/workflows/build-ios-ipa.yml` creates an unsigned,
+device-targeted IPA on a GitHub-hosted macOS runner. It does not need Apple
+Developer credentials or repository secrets.
 
-## Required GitHub Actions secrets
+## Run it
 
-Create these repository secrets before running the workflow:
+1. Open the repository's **Actions** tab.
+2. Select **Build unsigned iOS IPA**.
+3. Choose **Run workflow**.
+4. Download the `project-istiqamah-ios-unsigned` artifact when the job passes.
 
-| Secret                                   | Value                                                |
-| ---------------------------------------- | ---------------------------------------------------- |
-| `IOS_TEAM_ID`                            | Apple Developer Team ID                              |
-| `IOS_DISTRIBUTION_CERTIFICATE_BASE64`    | Base64-encoded Apple Distribution `.p12` certificate |
-| `IOS_DISTRIBUTION_CERTIFICATE_PASSWORD`  | Password used when exporting the `.p12`              |
-| `IOS_AD_HOC_PROVISIONING_PROFILE_BASE64` | Base64-encoded ad hoc `.mobileprovision` profile     |
+Pushing a tag whose name starts with `v` also runs the workflow.
 
-The provisioning profile must match:
+## What the workflow does
 
-- Bundle ID: `com.projectistiqamah.app`
-- Distribution type: Ad Hoc
-- Every iPhone UDID that should be able to install the app
+The job installs the committed pnpm lockfile, type-checks the Expo app,
+generates its native iOS project, installs CocoaPods, and builds a Release app
+for the physical-device SDK with code signing disabled. It then places the app
+inside `Payload/`, creates `ProjectIstiqamah-unsigned.ipa`, verifies the archive,
+and uploads it for 14 days.
 
-The certificate and provisioning profile are signing credentials. Do not
-commit them to the repository or put them in `app.json`.
+## Installing it
 
-## Running the build
+An unsigned IPA cannot be installed directly by tapping it. A sideloading tool
+must sign it with an Apple ID or certificate before iOS will install it. The
+workflow intentionally does not store or use signing credentials.
 
-Run **Actions → Build Project Istiqamah iOS IPA → Run workflow**, or push a tag
-such as `v1.0.0`. When it completes, download the
-`project-istiqamah-ios` artifact.
-
-An ad hoc IPA can be sideloaded only onto devices included in the provisioning
-profile and only while the profile is valid.
-
-## What is native already
-
-The standalone build includes the current React Native app, AsyncStorage
-persistence, haptics, and local notifications. Expo Go is not used by the
-workflow.
-
-There is no single switch that enables every iPhone capability. Features such
-as Screen Time monitoring, Dynamic Island Live Activities, widgets, HealthKit,
-background processing, and Home Screen controls each require their own native
-API, entitlement, and often an iOS extension. They can be added incrementally
-without rewriting the existing React Native screens.
+The app uses the bundle identifier `com.projectistiqamah.app`. If a signing tool
+requires a different identifier, configure that in the signing tool or update
+`ios.bundleIdentifier` in `artifacts/project-istiqamah/app.json` before building.
