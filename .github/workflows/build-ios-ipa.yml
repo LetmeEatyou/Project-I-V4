@@ -1,141 +1,39 @@
-name: Build Project Istiqamah iOS
-
-on:
-  workflow_dispatch:
-  push:
-    tags:
-      - "v*"
-
-jobs:
-  build-ios:
-    name: Build unsigned iOS app
-    runs-on: macos-15
-    timeout-minutes: 60
-
-    steps:
-      # ------------------------------------------------------------
-      # Checkout
-      # ------------------------------------------------------------
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      # ------------------------------------------------------------
-      # Node
-      # ------------------------------------------------------------
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      # ------------------------------------------------------------
-      # pnpm
-      # ------------------------------------------------------------
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.26.1
-
-      # ------------------------------------------------------------
-      # Install dependencies
-      #
-      # DO NOT use --frozen-lockfile here because your repository's
-      # pnpm-workspace.yaml overrides and lockfile were mismatched.
-      # This allows GitHub Actions to regenerate the lockfile.
-      # ------------------------------------------------------------
-      - name: Install JavaScript dependencies
-        run: pnpm install --no-frozen-lockfile
-
-      # ------------------------------------------------------------
-      # Show Xcode information
-      # ------------------------------------------------------------
-      - name: Check Xcode
-        run: |
-          set -euo pipefail
-          xcode-select -p
-          xcodebuild -version
-          xcodebuild -showsdks
-
-      # ------------------------------------------------------------
-      # Generate native iOS project
-      # ------------------------------------------------------------
-      - name: Generate native iOS project
-        working-directory: artifacts/project-istiqamah
-        run: |
-          set -euo pipefail
-          pnpm exec expo prebuild --platform ios --clean --no-install
-
-      # ------------------------------------------------------------
-      # Install CocoaPods
-      # ------------------------------------------------------------
-      - name: Install CocoaPods
-        working-directory: artifacts/project-istiqamah/ios
-        run: |
-          set -euo pipefail
-          pod install --repo-update
-
-      # ------------------------------------------------------------
-      # Build unsigned iOS app
-      #
-      # IMPORTANT:
-      # - No CODE_SIGN_IDENTITY
-      # - No provisioning profile
-      # - No Apple certificates
-      # - No generic iOS destination
-      # - No forced iphoneos SDK
-      #
-      # This is only a compile/build test.
-      # Signing will be handled later for SideStore/free developer use.
-      # ------------------------------------------------------------
-      - name: Build unsigned iOS app
-        working-directory: artifacts/project-istiqamah
+      - name: Package and verify IPA
+        working-directory: ${{ env.APP_DIR }}
         run: |
           set -euo pipefail
 
-          rm -rf build
-          mkdir -p build
+          app_path="build/DerivedData/Build/Products/Release-iphoneos/ProjectIstiqamah.app"
+          ipa_path="build/ProjectIstiqamah-unsigned.ipa"
 
-          xcodebuild \
-            -workspace ios/ProjectIstiqamah.xcworkspace \
-            -scheme ProjectIstiqamah \
-            -configuration Release \
-            -derivedDataPath "$PWD/build/DerivedData" \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            clean build
-
-      # ------------------------------------------------------------
-      # Package .app
-      # ------------------------------------------------------------
-      - name: Package unsigned app
-        working-directory: artifacts/project-istiqamah
-        run: |
-          set -euo pipefail
-
-          APP_PATH=$(find build/DerivedData/Build/Products/Release-iphoneos \
-            -maxdepth 1 \
-            -name "*.app" \
-            -type d \
-            -print -quit)
-
-          if [ -z "$APP_PATH" ]; then
-            echo "ERROR: No .app was produced."
+          if [[ ! -d "$app_path" ]]; then
+            echo "Expected app was not produced at $app_path" >&2
+            find build/DerivedData/Build/Products -maxdepth 3 -type d -name "*.app" -print
             exit 1
           fi
 
-          mkdir -p build/Payload
+          if codesign --verify "$app_path" >/dev/null 2>&1; then
+            echo "Expected an unsigned app, but a valid signature was found" >&2
+            exit 1
+          fi
 
-          cp -R "$APP_PATH" build/Payload/
+          rm -rf build/package
+          mkdir -p build/package/Payload
 
-          cd build
+          ditto "$app_path" "build/package/Payload/ProjectIstiqamah.app"
 
-          zip -r ProjectIstiqamah-unsigned.ipa Payload
+          (
+            cd build/package
+            /usr/bin/zip -qry "../ProjectIstiqamah-unsigned.ipa" Payload
+          )
 
-      # ------------------------------------------------------------
-      # Upload unsigned IPA
-      # ------------------------------------------------------------
+          unzip -tq "$ipa_path"
+          test -s "$ipa_path"
+
       - name: Upload unsigned IPA
         uses: actions/upload-artifact@v4
         with:
           name: project-istiqamah-ios-unsigned
           path: artifacts/project-istiqamah/build/ProjectIstiqamah-unsigned.ipa
           if-no-files-found: error
+          retention-days: 14
