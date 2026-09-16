@@ -18,8 +18,9 @@ Pushing a tag whose name starts with `v` also runs the workflow.
 The job installs the committed pnpm lockfile, type-checks the Expo app,
 generates its native iOS project, installs CocoaPods, and builds a Release app
 for the physical-device SDK with code signing disabled. It then places the app
-inside `Payload/`, creates `ProjectIstiqamah-unsigned.ipa`, verifies the archive,
-and uploads it for 14 days.
+inside `Payload/`, creates `ProjectIstiqamah-unsigned.ipa`, verifies the
+production JavaScript bundle and Live Activity extension are embedded, checks
+the archive, and uploads it for 14 days.
 
 ## Installing it
 

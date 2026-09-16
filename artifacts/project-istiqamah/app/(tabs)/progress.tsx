@@ -39,7 +39,7 @@ export default function ProgressScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.container, { paddingTop: insets.top + 22, paddingBottom: insets.bottom + 110 }]}>
+      <ScrollView alwaysBounceVertical={false} bounces={false} contentInsetAdjustmentBehavior="never" overScrollMode="never" showsVerticalScrollIndicator={false} contentContainerStyle={[styles.container, { paddingTop: insets.top + 22, paddingBottom: 92 }]}>
         <Text style={[styles.eyebrow, { color: colors.mutedForeground }]}>THE LONG VIEW</Text>
         <Text style={[styles.title, { color: colors.foreground }]}>Progress</Text>
         <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>Notice the days you kept showing up.</Text>

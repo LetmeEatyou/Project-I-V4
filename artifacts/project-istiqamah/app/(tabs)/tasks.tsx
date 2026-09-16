@@ -13,7 +13,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Task, useTasks } from "@/context/task-context";
+import { SubtaskInput, Task, useTasks } from "@/context/task-context";
 import { isValidTime } from "@/lib/time";
 import { useColors } from "@/hooks/useColors";
 
@@ -27,7 +27,7 @@ export default function TasksScreen() {
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [description, setDescription] = useState("");
-  const [actionItems, setActionItems] = useState("");
+  const [actionItems, setActionItems] = useState<SubtaskInput[]>([]);
   const [formError, setFormError] = useState("");
 
   const openNew = () => {
@@ -36,7 +36,7 @@ export default function TasksScreen() {
     setStartTime("");
     setEndTime("");
     setDescription("");
-    setActionItems("");
+    setActionItems([]);
     setFormError("");
     setModalVisible(true);
   };
@@ -47,7 +47,9 @@ export default function TasksScreen() {
     setStartTime(task.startTime);
     setEndTime(task.endTime);
     setDescription(task.description);
-    setActionItems(task.subtasks.map((subtask) => subtask.name).join("\n"));
+    setActionItems(
+      task.subtasks.map((subtask) => ({ id: subtask.id, name: subtask.name })),
+    );
     setFormError("");
     setModalVisible(true);
   };
@@ -59,21 +61,13 @@ export default function TasksScreen() {
       );
       return;
     }
-    const subtaskNames = actionItems
-      .split("\n")
-      .map((item) => item.trim())
-      .filter(Boolean)
+    const subtasks = actionItems
+      .map((item) => ({ ...item, name: item.name.trim() }))
+      .filter((item) => item.name)
       .slice(0, 5);
     if (editing)
-      updateTask(
-        editing.id,
-        name,
-        startTime,
-        endTime,
-        description,
-        subtaskNames,
-      );
-    else addTask(name, startTime, endTime, description, subtaskNames);
+      updateTask(editing.id, name, startTime, endTime, description, subtasks);
+    else addTask(name, startTime, endTime, description, subtasks);
     if (preferences.haptics)
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     Keyboard.dismiss();
@@ -93,10 +87,14 @@ export default function TasksScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
       <ScrollView
+        alwaysBounceVertical={false}
+        bounces={false}
+        contentInsetAdjustmentBehavior="never"
+        overScrollMode="never"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.container,
-          { paddingTop: insets.top + 22, paddingBottom: insets.bottom + 110 },
+          { paddingTop: insets.top + 22, paddingBottom: 92 },
         ]}
       >
         <View style={styles.header}>
@@ -359,8 +357,12 @@ export default function TasksScreen() {
               WHAT WILL YOU DO? · UP TO 5 ACTIONS
             </Text>
             <TextInput
-              value={actionItems}
-              onChangeText={setActionItems}
+              value={actionItems.map((item) => item.name).join("\n")}
+              onChangeText={(value) =>
+                setActionItems((current) =>
+                  reconcileActionItems(current, value),
+                )
+              }
               placeholder={"One action per line\nPray Fajr\nRead Quran"}
               placeholderTextColor={colors.mutedForeground}
               multiline
@@ -393,11 +395,11 @@ export default function TasksScreen() {
                 },
               ]}
             />
-            {formError && (
+            {formError ? (
               <Text style={[styles.errorText, { color: colors.destructive }]}>
                 {formError}
               </Text>
-            )}
+            ) : null}
             <Pressable
               testID="save-task"
               onPress={save}
@@ -451,6 +453,35 @@ export default function TasksScreen() {
       </Modal>
     </View>
   );
+}
+
+function reconcileActionItems(
+  current: SubtaskInput[],
+  value: string,
+): SubtaskInput[] {
+  const names = value.split("\n").slice(0, 5);
+  const used = new Set<number>();
+  const exactMatches = names.map((name) => {
+    const index = current.findIndex(
+      (item, candidateIndex) => !used.has(candidateIndex) && item.name === name,
+    );
+    if (index >= 0) used.add(index);
+    return index;
+  });
+
+  return names.map((name, index) => {
+    const exactIndex = exactMatches[index];
+    if (exactIndex >= 0) return { ...current[exactIndex], name };
+
+    const sameIndex = !used.has(index) ? index : -1;
+    const fallbackIndex = current.findIndex(
+      (_item, candidateIndex) => !used.has(candidateIndex),
+    );
+    const previousIndex = sameIndex >= 0 ? sameIndex : fallbackIndex;
+    if (previousIndex < 0) return { name };
+    used.add(previousIndex);
+    return { ...current[previousIndex], name };
+  });
 }
 
 const styles = StyleSheet.create({

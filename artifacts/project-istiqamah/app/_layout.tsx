@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Inter_400Regular } from "@expo-google-fonts/inter/400Regular";
@@ -12,6 +12,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { AppState, Platform } from "react-native";
 import { TaskProvider, useTasks } from "@/context/task-context";
 import { syncBlockLiveActivity } from "@/lib/live-activity";
+import { millisecondsUntilNextBlockBoundary } from "@/lib/time";
 import {
   isBlockNotificationData,
   syncUpcomingBlockNotifications,
@@ -30,29 +31,80 @@ function RootLayoutNav() {
 
 function SystemEffects() {
   const { tasks, preferences, isReady } = useTasks();
+  const notificationSync = useRef<{
+    running: boolean;
+    mounted: boolean;
+    pending: null | {
+      tasks: typeof tasks;
+      reminderMinutes: number;
+      reminders: boolean;
+    };
+  }>({ running: false, mounted: true, pending: null });
+
+  useEffect(() => {
+    const state = notificationSync.current;
+    state.mounted = true;
+    return () => {
+      state.mounted = false;
+      state.pending = null;
+    };
+  }, []);
 
   useEffect(() => {
     if (!isReady) return;
-    const timeout = setTimeout(() => {
-      syncUpcomingBlockNotifications(
-        tasks,
-        preferences.reminderMinutes,
-        preferences.reminders,
-      ).catch(() => undefined);
-    }, 250);
+    const state = notificationSync.current;
+    state.pending = {
+      tasks,
+      reminderMinutes: preferences.reminderMinutes,
+      reminders: preferences.reminders,
+    };
+
+    const runLatest = async () => {
+      if (!state.mounted || state.running || !state.pending) return;
+      const snapshot = state.pending;
+      state.pending = null;
+      state.running = true;
+      try {
+        await syncUpcomingBlockNotifications(
+          snapshot.tasks,
+          snapshot.reminderMinutes,
+          snapshot.reminders,
+        );
+      } catch {
+        // Notification permissions and scheduling failures must not block the app.
+      } finally {
+        state.running = false;
+        if (state.mounted && state.pending) void runLatest();
+      }
+    };
+
+    const timeout = setTimeout(() => void runLatest(), 250);
     return () => clearTimeout(timeout);
   }, [isReady, preferences.reminderMinutes, preferences.reminders, tasks]);
 
   useEffect(() => {
     if (!isReady) return;
-    const sync = () => syncBlockLiveActivity(tasks).catch(() => undefined);
-    sync();
-    const interval = setInterval(sync, 15_000);
+    let boundaryTimeout: ReturnType<typeof setTimeout> | undefined;
+    let stopped = false;
+    const sync = async () => {
+      await syncBlockLiveActivity(tasks).catch(() => undefined);
+      if (stopped) return;
+      boundaryTimeout = setTimeout(
+        sync,
+        millisecondsUntilNextBlockBoundary(tasks),
+      );
+    };
+    const syncNow = () => {
+      if (boundaryTimeout) clearTimeout(boundaryTimeout);
+      sync();
+    };
+    syncNow();
     const subscription = AppState.addEventListener("change", (state) => {
-      if (state === "active") sync();
+      if (state === "active") syncNow();
     });
     return () => {
-      clearInterval(interval);
+      stopped = true;
+      if (boundaryTimeout) clearTimeout(boundaryTimeout);
       subscription.remove();
     };
   }, [isReady, tasks]);

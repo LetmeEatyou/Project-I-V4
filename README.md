@@ -10,7 +10,7 @@ The main application lives in [`artifacts/project-istiqamah`](artifacts/project-
 2. Use **Today** to move between dates, see the current or next block, and mark blocks or actions complete.
 3. The live timer counts down to an upcoming block or shows the time remaining in an active block.
 4. Open **Progress** to review the last seven days, total completions, consistency, current streak, and most frequently completed block.
-5. Use **Settings** to control haptics, choose a reminder lead time from 5–165 minutes, or export a JSON backup.
+5. Use **Settings** to control haptics, choose a reminder lead time from 5–15 minutes, or export a JSON backup.
 
 Tasks, completion history, and preferences are stored on the device with AsyncStorage. No account or backend is required for the current app. First-time users receive four example blocks, which can be edited or deleted.
 
@@ -23,7 +23,7 @@ Tasks, completion history, and preferences are stored on the device with AsyncSt
 - Live countdown and active-block progress indicator
 - Previous/next day navigation and a quick return to today
 - Seven-day completion chart, streaks, consistency statistics, and per-block totals
-- Configurable 5–165 minute reminders plus start and completion alerts
+- Configurable 5–15 minute reminders plus start and completion alerts
 - Time-sensitive notification sound on iOS and a maximum-importance alarm channel on Android
 - iOS Live Activity with a native countdown on the Lock Screen and Dynamic Island on supported iPhones
 - One-tap completion recording after a block ends from a Live Activity or completion notification
@@ -38,7 +38,7 @@ Tasks, completion history, and preferences are stored on the device with AsyncSt
 These items are not implemented yet:
 
 - **Apple Screen Time data:** app-usage monitoring needs a native iOS module plus Apple's Family Controls entitlement and cannot run in Expo Go.
-- **Remote Live Activity start:** a Live Activity starts automatically while the app process is active. Starting it when the app has been fully terminated requires an APNs push-to-start service and Apple push credentials; scheduled reminder/start/end notifications still work without that service.
+- **Background Live Activity start:** a Live Activity starts automatically while the app process is active. Starting it when the app has been fully terminated still requires either a native bridge to Apple's scheduled ActivityKit API or an APNs push-to-start service; scheduled reminder/start/end notifications continue to work without either service.
 - **Critical alarm audio on iOS:** alerts are time-sensitive and play sound, but bypassing silent mode requires Apple's restricted Critical Alerts entitlement. The app cannot legally force unrestricted or continuously looping alarm audio without it.
 - **Automatic iCloud restore:** data is local to the installed app. Deleting the app also removes its local data, so users should export a backup first.
 - **Backup import:** the app can export JSON but does not yet restore from an exported file.
@@ -50,7 +50,7 @@ These items are not implemented yet:
 
 - Add backup import with schema validation and a preview before replacing local data.
 - Add optional encrypted cloud backup and multi-device sync without making an account mandatory.
-- Add flexible reminder lead times, repeat schedules, notification categories, and clearer permission status.
+- Add repeat schedules, snooze actions, notification categories, and clearer permission status.
 - Add drag-and-drop block ordering, templates, search, tags, and archived blocks.
 - Expand analytics with weekly/monthly ranges, partial-action progress, and exportable reports.
 - Add a native Screen Time integration once entitlements and privacy flows are available.
