@@ -141,7 +141,7 @@ struct AppPreferences: Codable, Equatable {
 
     static func normalizedSnoozeMinutes(_ minutes: Int) -> Int {
         let bounded = min(15, max(5, minutes))
-        snoozeOptions.min { first, second in
+        return snoozeOptions.min { first, second in
             abs(first - bounded) < abs(second - bounded)
         } ?? 5
     }

@@ -158,7 +158,7 @@ private struct BlockEditor: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Block") {
+                Section {
                     TextField("Block name", text: $block.name)
                     DatePicker(
                         "Start",
@@ -171,6 +171,8 @@ private struct BlockEditor: View {
                         displayedComponents: .hourAndMinute
                     )
                     TextField("Note", text: $block.note, axis: .vertical)
+                } header: {
+                    Text("Block")
                 } footer: {
                     Text("Times use your iPhone's preferred 12-hour or 24-hour format.")
                 }
