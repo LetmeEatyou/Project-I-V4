@@ -10,14 +10,24 @@ actor LiveActivityManager {
     private var syncGeneration = 0
     private var activityMutationTail: Task<Void, Never>?
 
-    func sync(blocks: [FocusBlock], now: Date = Date()) async -> LiveActivityReport? {
+    func sync(
+        blocks: [FocusBlock],
+        pausedBlocks: [String: Date] = [:],
+        now: Date = Date()
+    ) async -> LiveActivityReport? {
         syncGeneration &+= 1
         let generation = syncGeneration
-        return await synchronize(blocks: blocks, now: now, generation: generation)
+        return await synchronize(
+            blocks: blocks,
+            pausedBlocks: pausedBlocks,
+            now: now,
+            generation: generation
+        )
     }
 
     private func synchronize(
         blocks: [FocusBlock],
+        pausedBlocks: [String: Date],
         now: Date,
         generation: Int
     ) async -> LiveActivityReport? {
@@ -37,15 +47,29 @@ actor LiveActivityManager {
             let key = "\(activity.attributes.blockID.uuidString):\(activity.attributes.dateKey)"
             let scheduled = currentSchedule[key]
             let completed = scheduled?.block.completedDates.contains(activity.attributes.dateKey) ?? true
+            let pausedAt = pausedBlocks[key]
             let changed = scheduled.map {
                 $0.block.name != activity.content.state.blockName ||
                 $0.start != activity.content.state.startDate ||
-                $0.end != activity.content.state.endDate
+                $0.end != activity.content.state.endDate ||
+                pausedAt != activity.content.state.pausedAt
             } ?? true
-            let tooOld = activity.content.state.endDate.addingTimeInterval(4 * 60 * 60) < now
-            if completed || changed || tooOld {
+            let ended = (scheduled?.end ?? activity.content.state.endDate) <= now
+            if completed || ended {
                 await performActivityMutation {
                     await activity.end(nil, dismissalPolicy: .immediate)
+                }
+                guard generation == syncGeneration else { return nil }
+            } else if changed, let scheduled {
+                if activity.activityState == .active {
+                    let content = activityContent(for: scheduled, pausedAt: pausedAt)
+                    await performActivityMutation {
+                        await activity.update(content)
+                    }
+                } else {
+                    await performActivityMutation {
+                        await activity.end(nil, dismissalPolicy: .immediate)
+                    }
                 }
                 guard generation == syncGeneration else { return nil }
             }
@@ -53,7 +77,11 @@ actor LiveActivityManager {
 
         if let active {
             do {
-                guard try await startIfNeeded(active, generation: generation) else { return nil }
+                guard try await startIfNeeded(
+                    active,
+                    pausedAt: pausedBlocks[active.id],
+                    generation: generation
+                ) else { return nil }
             } catch {
                 return LiveActivityReport(message: "Start failed: \(error.localizedDescription)")
             }
@@ -98,7 +126,11 @@ actor LiveActivityManager {
         return LiveActivityReport(message: "Ready · no block is running")
     }
 
-    func restart(blocks: [FocusBlock], now: Date = Date()) async -> LiveActivityReport? {
+    func restart(
+        blocks: [FocusBlock],
+        pausedBlocks: [String: Date] = [:],
+        now: Date = Date()
+    ) async -> LiveActivityReport? {
         syncGeneration &+= 1
         let generation = syncGeneration
         for activity in Activity<BlockActivityAttributes>.activities {
@@ -108,15 +140,24 @@ actor LiveActivityManager {
             }
             guard generation == syncGeneration else { return nil }
         }
-        return await synchronize(blocks: blocks, now: now, generation: generation)
+        return await synchronize(
+            blocks: blocks,
+            pausedBlocks: pausedBlocks,
+            now: now,
+            generation: generation
+        )
     }
 
-    private func startIfNeeded(_ item: ScheduledBlock, generation: Int) async throws -> Bool {
+    private func startIfNeeded(
+        _ item: ScheduledBlock,
+        pausedAt: Date?,
+        generation: Int
+    ) async throws -> Bool {
         guard generation == syncGeneration else { return false }
         let existing = Activity<BlockActivityAttributes>.activities.first {
             $0.attributes.blockID == item.block.id && $0.attributes.dateKey == item.dateKey
         }
-        let content = activityContent(for: item)
+        let content = activityContent(for: item, pausedAt: pausedAt)
         if let existing, existing.activityState == .active {
             await performActivityMutation {
                 await existing.update(content)
@@ -162,7 +203,7 @@ actor LiveActivityManager {
         let availableSlots = max(0, 4 - occupiedSlots)
         let candidates = DateTools.schedule(for: blocks, around: now)
             .filter {
-                $0.start > now.addingTimeInterval(30) &&
+                $0.start > now &&
                 !$0.block.completedDates.contains($0.dateKey) &&
                 !existingKeys.contains("\($0.block.id.uuidString):\($0.dateKey)")
             }
@@ -196,6 +237,7 @@ actor LiveActivityManager {
 
     private func activityContent(
         for item: ScheduledBlock,
+        pausedAt: Date? = nil,
         relevanceScore: Double = 100
     ) -> ActivityContent<BlockActivityAttributes.ContentState> {
         ActivityContent(
@@ -203,7 +245,8 @@ actor LiveActivityManager {
                 blockName: item.block.name,
                 startDate: item.start,
                 endDate: item.end,
-                timeLabel: "\(item.block.startTime) – \(item.block.endTime)"
+                timeLabel: "\(item.block.startTime) – \(item.block.endTime)",
+                pausedAt: pausedAt
             ),
             staleDate: item.end,
             relevanceScore: relevanceScore

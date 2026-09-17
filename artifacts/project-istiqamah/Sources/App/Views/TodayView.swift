@@ -61,6 +61,7 @@ struct TodayView: View {
             .toolbarColorScheme(.dark, for: .navigationBar)
         }
         .onReceive(timer) { now = $0 }
+        .onReceive(store.$timelineDate) { now = $0 }
     }
 
     private var dateCard: some View {
@@ -95,9 +96,16 @@ struct TodayView: View {
     private func focusCard(_ item: ScheduledBlock) -> some View {
         let phase = phase(for: item)
         let completed = item.block.completedDates.contains(item.dateKey)
-        let remaining = phase == .upcoming ? item.start.timeIntervalSince(now) : item.end.timeIntervalSince(now)
+        let pausedAt = store.pauseDate(for: item)
+        let effectiveNow = pausedAt ?? now
+        let remaining = phase == .upcoming
+            ? item.start.timeIntervalSince(now)
+            : item.end.timeIntervalSince(effectiveNow)
         let duration = max(1, item.end.timeIntervalSince(item.start))
-        let progress = phase == .running ? max(0, min(1, now.timeIntervalSince(item.start) / duration)) : phase == .ended ? 1 : 0
+        let progress = phase == .running
+            ? max(0, min(1, effectiveNow.timeIntervalSince(item.start) / duration))
+            : phase == .ended ? 1 : 0
+        let isActivelyRunning = phase == .running && pausedAt == nil
 
         return VStack(alignment: .leading, spacing: 16) {
             HStack {
@@ -106,9 +114,13 @@ struct TodayView: View {
                     .tracking(1.4)
                     .foregroundStyle(AppTheme.primary)
                 Spacer()
-                Image(systemName: phase == .running ? "flame.fill" : "timer")
-                    .foregroundStyle(phase == .running ? AppTheme.flame : AppTheme.primary)
-                    .symbolEffect(.variableColor.iterative, options: .repeating.speed(0.7))
+                Image(systemName: pausedAt == nil ? (phase == .running ? "flame.fill" : "timer") : "pause.fill")
+                    .foregroundStyle(isActivelyRunning ? AppTheme.flame : AppTheme.primary)
+                    .symbolEffect(
+                        .variableColor.iterative,
+                        options: .repeating.speed(0.7),
+                        isActive: isActivelyRunning
+                    )
             }
             Text(item.block.name)
                 .font(.title2.weight(.semibold))
@@ -123,6 +135,13 @@ struct TodayView: View {
                 Text("\(item.block.startTime) – \(item.block.endTime)")
                     .foregroundStyle(AppTheme.muted)
                 Spacer()
+                if phase == .running {
+                    Button(pausedAt == nil ? "Pause" : "Resume") {
+                        store.togglePause(item)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(AppTheme.primary)
+                }
                 Button(completed ? "Completed" : "Mark complete") {
                     store.toggleBlock(item.block.id, dateKey: item.dateKey)
                 }

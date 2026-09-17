@@ -10,9 +10,12 @@ final class AppStore: ObservableObject {
     @Published private(set) var requestedBlockID: UUID?
     @Published private(set) var liveActivityStatus = "Checking…"
     @Published private(set) var notificationTestStatus: String?
+    @Published private(set) var timelineDate = Date()
 
     private let storageURL: URL
+    private var pausedBlocks: [String: Date]
     private var refreshGeneration = 0
+    private var transitionTask: Task<Void, Never>?
 
     init() {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -30,10 +33,12 @@ final class AppStore: ObservableObject {
                 let snapshot = try decoder.decode(AppSnapshot.self, from: data)
                 blocks = snapshot.blocks
                 preferences = snapshot.preferences
+                pausedBlocks = snapshot.pausedBlocks ?? [:]
                 needsInitialPersist = false
             } catch {
                 blocks = Self.seedBlocks
                 preferences = AppPreferences()
+                pausedBlocks = [:]
                 let unreadableURL = directory
                     .appendingPathComponent("data-unreadable-\(UUID().uuidString).json")
                 needsInitialPersist = (try? FileManager.default.moveItem(
@@ -44,6 +49,7 @@ final class AppStore: ObservableObject {
         } else {
             blocks = Self.seedBlocks
             preferences = AppPreferences()
+            pausedBlocks = [:]
             needsInitialPersist = true
         }
         requestedBlockID = nil
@@ -75,6 +81,7 @@ final class AppStore: ObservableObject {
         } else {
             guard canRecordCompletion(for: blocks[index], dateKey: dateKey) else { return }
             blocks[index].completedDates.insert(dateKey)
+            pausedBlocks.removeValue(forKey: scheduleKey(blockID: blockID, dateKey: dateKey))
             haptic(.success)
         }
         changed()
@@ -112,18 +119,42 @@ final class AppStore: ObservableObject {
             selectedDate = date
         }
         requestedBlockID = blockID
-        if route.action == "complete",
-           let block = blocks.first(where: { $0.id == blockID }),
-           let date = DateTools.date(from: dateKey),
-           let window = DateTools.window(for: block, on: date),
-           Date() >= window.end,
-           !block.completedDates.contains(dateKey) {
+        switch route.action {
+        case "pause":
+            setPaused(true, blockID: blockID, dateKey: dateKey)
+        case "resume":
+            setPaused(false, blockID: blockID, dateKey: dateKey)
+        case "end":
+            endBlock(blockID, dateKey: dateKey)
+            requestedBlockID = nil
+        case "complete":
+            guard let block = blocks.first(where: { $0.id == blockID }),
+                  let date = DateTools.date(from: dateKey),
+                  let window = DateTools.window(for: block, on: date),
+                  Date() >= window.end,
+                  !block.completedDates.contains(dateKey) else { return }
             toggleBlock(blockID, dateKey: dateKey)
+        default:
+            break
         }
     }
 
+    func pauseDate(for item: ScheduledBlock) -> Date? {
+        pausedBlocks[item.id]
+    }
+
+    func togglePause(_ item: ScheduledBlock) {
+        setPaused(pauseDate(for: item) == nil, blockID: item.block.id, dateKey: item.dateKey)
+    }
+
     func exportBackup() throws -> URL {
-        let snapshot = AppSnapshot(version: 2, exportedAt: Date(), blocks: blocks, preferences: preferences)
+        let snapshot = AppSnapshot(
+            version: 3,
+            exportedAt: Date(),
+            blocks: blocks,
+            preferences: preferences,
+            pausedBlocks: pausedBlocks
+        )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
@@ -134,8 +165,22 @@ final class AppStore: ObservableObject {
         return url
     }
 
-    func refreshSystemFeatures() {
+    func activateTimeline() {
+        refreshSystemFeatures()
+    }
+
+    func deactivateTimeline() {
+        transitionTask?.cancel()
+        transitionTask = nil
+    }
+
+    func refreshSystemFeatures(now: Date = Date()) {
+        clearExpiredRoute(at: now)
+        timelineDate = now
+        prunePausedBlocks(at: now)
+        scheduleNextTransition(after: now)
         let currentBlocks = blocks
+        let currentPausedBlocks = pausedBlocks
         let currentPreferences = preferences
         BackgroundRefreshManager.shared.schedule(blocks: currentBlocks)
         refreshGeneration &+= 1
@@ -145,7 +190,11 @@ final class AppStore: ObservableObject {
                 blocks: currentBlocks,
                 preferences: currentPreferences
             )
-            async let activitySync = LiveActivityManager.shared.sync(blocks: currentBlocks)
+            async let activitySync = LiveActivityManager.shared.sync(
+                blocks: currentBlocks,
+                pausedBlocks: currentPausedBlocks,
+                now: now
+            )
             let report = await activitySync
             if let self, let report, generation == self.refreshGeneration {
                 self.liveActivityStatus = report.message
@@ -156,11 +205,15 @@ final class AppStore: ObservableObject {
 
     func restartLiveActivity() {
         let currentBlocks = blocks
+        let currentPausedBlocks = pausedBlocks
         liveActivityStatus = "Restarting…"
         refreshGeneration &+= 1
         let generation = refreshGeneration
         Task { [weak self] in
-            let report = await LiveActivityManager.shared.restart(blocks: currentBlocks)
+            let report = await LiveActivityManager.shared.restart(
+                blocks: currentBlocks,
+                pausedBlocks: currentPausedBlocks
+            )
             guard let self, let report, generation == self.refreshGeneration else { return }
             self.liveActivityStatus = report.message
         }
@@ -180,6 +233,79 @@ final class AppStore: ObservableObject {
         refreshSystemFeatures()
     }
 
+    private func setPaused(_ paused: Bool, blockID: UUID, dateKey: String) {
+        guard let block = blocks.first(where: { $0.id == blockID }),
+              let date = DateTools.date(from: dateKey),
+              let window = DateTools.window(for: block, on: date) else { return }
+        let now = Date()
+        let key = scheduleKey(blockID: blockID, dateKey: dateKey)
+        if paused {
+            guard window.start <= now, now < window.end,
+                  !block.completedDates.contains(dateKey) else { return }
+            pausedBlocks[key] = now
+        } else {
+            pausedBlocks.removeValue(forKey: key)
+        }
+        changed()
+    }
+
+    private func endBlock(_ blockID: UUID, dateKey: String) {
+        guard let index = blocks.firstIndex(where: { $0.id == blockID }),
+              canRecordCompletion(for: blocks[index], dateKey: dateKey),
+              !blocks[index].completedDates.contains(dateKey) else { return }
+        blocks[index].completedDates.insert(dateKey)
+        pausedBlocks.removeValue(forKey: scheduleKey(blockID: blockID, dateKey: dateKey))
+        haptic(.success)
+        changed()
+    }
+
+    private func scheduleNextTransition(after now: Date) {
+        transitionTask?.cancel()
+        transitionTask = nil
+        guard let boundary = DateTools.nextTransition(in: blocks, after: now) else { return }
+        let delay = max(0, boundary.timeIntervalSince(now))
+        transitionTask = Task { @MainActor [weak self] in
+            do {
+                try await Task.sleep(for: .seconds(delay), tolerance: .zero)
+            } catch {
+                return
+            }
+            guard let self else { return }
+            self.transitionTask = nil
+            self.refreshSystemFeatures(now: max(Date(), boundary))
+        }
+    }
+
+    private func scheduleKey(blockID: UUID, dateKey: String) -> String {
+        "\(blockID.uuidString):\(dateKey)"
+    }
+
+    private func clearExpiredRoute(at now: Date) {
+        guard let requestedBlockID,
+              let block = blocks.first(where: { $0.id == requestedBlockID }),
+              let window = DateTools.window(for: block, on: selectedDate),
+              now >= window.end else { return }
+        self.requestedBlockID = nil
+        selectedDate = now
+    }
+
+    private func prunePausedBlocks(at now: Date) {
+        guard !pausedBlocks.isEmpty else { return }
+        let activeKeys = Set(
+            DateTools.schedule(for: blocks, around: now, days: 2)
+                .filter {
+                    $0.start <= now && now < $0.end &&
+                    !$0.block.completedDates.contains($0.dateKey)
+                }
+                .map(\.id)
+        )
+        let previousCount = pausedBlocks.count
+        pausedBlocks = pausedBlocks.filter { activeKeys.contains($0.key) }
+        if pausedBlocks.count != previousCount {
+            persist()
+        }
+    }
+
     private func canRecordCompletion(for block: FocusBlock, dateKey: String) -> Bool {
         guard let date = DateTools.date(from: dateKey),
               let window = DateTools.window(for: block, on: date) else {
@@ -189,7 +315,13 @@ final class AppStore: ObservableObject {
     }
 
     private func persist() {
-        let snapshot = AppSnapshot(version: 2, exportedAt: Date(), blocks: blocks, preferences: preferences)
+        let snapshot = AppSnapshot(
+            version: 3,
+            exportedAt: Date(),
+            blocks: blocks,
+            preferences: preferences,
+            pausedBlocks: pausedBlocks
+        )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         encoder.dateEncodingStrategy = .iso8601

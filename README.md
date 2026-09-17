@@ -23,15 +23,15 @@ The native application lives in [`artifacts/project-istiqamah`](artifacts/projec
 | --- | --- |
 | App navigation | Native SwiftUI tabs for Today, Blocks, Progress, and Settings |
 | Block planning | Create, edit, and delete blocks with a name, note, validated 24-hour start/end times, overnight ranges, and up to five checklist actions |
-| Daily view | Previous/next-day navigation, return to today, automatic selection of the running or next block, a one-second countdown, and progress through the active block |
+| Daily view | Previous/next-day navigation, return to today, timestamp-based selection of the running or next block, a live countdown, and progress through the active block |
 | Completion | Mark blocks and individual actions complete after their start time; completion is stored separately for each date |
 | Progress | Seven-day chart, completed-block total, practiced-day count, consistency percentage, current streak, and per-block completion totals |
 | Reminders | Time-sensitive alerts before a block, when it starts, and when it ends; the early reminder is configurable to 5, 10, or 15 minutes |
 | Reminder sounds | System Default, Gentle Chime, Bright Bell, and Focus Pulse choices, plus a two-second in-app test reminder |
 | Live Activities | Starts or updates the current block, removes completed or outdated activities, schedules upcoming starts on iOS 26, and provides status, refresh, and restart controls in Settings |
 | Background refresh | Reloads saved blocks during system-granted background time, refreshes notifications and Live Activities, and schedules the next best-effort wakeup near a block transition |
-| Dynamic Island | Compact real-time countdown capsule, expanded remaining-time region on the left, running block in the center, layered glowing native flame on the right, and an Open app link |
-| Lock Screen | Block name, schedule, live countdown, completion prompt after the block ends, and tap-to-open behavior |
+| Dynamic Island | Compact icon, block name, and remaining time; expanded timer, progress, Pause/Resume, and End controls; animated native flame while running |
+| Lock Screen | Minimal block name, schedule, live countdown, progress, Pause/Resume, End, and tap-to-open behavior |
 | Deep links | Notification and Live Activity taps open the Today tab on the relevant date and block; an ended-block link can record completion |
 | Local data | Codable JSON persistence in Application Support, preservation of an unreadable data file for recovery, and exclusion of private app data from device/iCloud backup |
 | Preferences | Reminder toggle, reminder timing, sound choice, haptic toggle, notification permission status, and shortcut to iOS Settings |

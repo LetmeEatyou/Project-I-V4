@@ -41,7 +41,10 @@ final class BackgroundRefreshManager {
                     blocks: snapshot.blocks,
                     preferences: snapshot.preferences
                 )
-                async let activitySync = LiveActivityManager.shared.sync(blocks: snapshot.blocks)
+                async let activitySync = LiveActivityManager.shared.sync(
+                    blocks: snapshot.blocks,
+                    pausedBlocks: snapshot.pausedBlocks ?? [:]
+                )
                 _ = await activitySync
                 _ = await notificationSync
                 task.setTaskCompleted(success: !Task.isCancelled)

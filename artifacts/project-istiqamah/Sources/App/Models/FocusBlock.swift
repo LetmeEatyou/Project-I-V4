@@ -85,6 +85,21 @@ struct AppSnapshot: Codable {
     let exportedAt: Date
     let blocks: [FocusBlock]
     let preferences: AppPreferences
+    let pausedBlocks: [String: Date]?
+
+    init(
+        version: Int,
+        exportedAt: Date,
+        blocks: [FocusBlock],
+        preferences: AppPreferences,
+        pausedBlocks: [String: Date]? = nil
+    ) {
+        self.version = version
+        self.exportedAt = exportedAt
+        self.blocks = blocks
+        self.preferences = preferences
+        self.pausedBlocks = pausedBlocks
+    }
 }
 
 struct ScheduledBlock: Identifiable {

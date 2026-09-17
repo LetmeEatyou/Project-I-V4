@@ -80,6 +80,14 @@ enum DateTools {
             .min { $0.start < $1.start }
     }
 
+    static func nextTransition(in blocks: [FocusBlock], after now: Date) -> Date? {
+        schedule(for: blocks, around: now, days: 2)
+            .filter { !$0.block.completedDates.contains($0.dateKey) }
+            .flatMap { [$0.start, $0.end] }
+            .filter { $0 > now }
+            .min()
+    }
+
     static func clock(seconds: TimeInterval) -> String {
         let safe = max(0, Int(seconds))
         let hours = safe / 3_600

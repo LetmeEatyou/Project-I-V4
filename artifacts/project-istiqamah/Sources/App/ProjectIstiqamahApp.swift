@@ -54,12 +54,14 @@ struct ProjectIstiqamahApp: App {
                     store.handle(route)
                 }
                 .task {
-                    store.refreshSystemFeatures()
+                    store.activateTimeline()
                 }
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
-                store.refreshSystemFeatures()
+                store.activateTimeline()
+            } else {
+                store.deactivateTimeline()
             }
         }
     }
