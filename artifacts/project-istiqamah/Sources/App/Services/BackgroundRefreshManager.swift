@@ -20,14 +20,16 @@ final class BackgroundRefreshManager {
         }
     }
 
-    func schedule(blocks: [FocusBlock], now: Date = Date()) {
+    @discardableResult
+    func schedule(blocks: [FocusBlock], now: Date = Date()) -> String? {
         let request = BGAppRefreshTaskRequest(identifier: Self.taskIdentifier)
         request.earliestBeginDate = nextRefreshDate(blocks: blocks, now: now)
 
         do {
             try BGTaskScheduler.shared.submit(request)
+            return nil
         } catch {
-            // The system may reject requests when Background App Refresh is disabled.
+            return error.localizedDescription
         }
     }
 
@@ -37,7 +39,7 @@ final class BackgroundRefreshManager {
                 let snapshot = try loadSnapshot()
                 schedule(blocks: snapshot.blocks)
 
-                async let notificationSync: Void = NotificationManager.shared.sync(
+                async let notificationSync = NotificationManager.shared.sync(
                     blocks: snapshot.blocks,
                     preferences: snapshot.preferences
                 )

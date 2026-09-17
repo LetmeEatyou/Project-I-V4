@@ -43,18 +43,41 @@ enum DateTools {
     }
 
     static func overlaps(_ first: FocusBlock, _ second: FocusBlock) -> Bool {
+        guard first.archivedAt == nil, second.archivedAt == nil else { return false }
         guard let firstStart = minutes(first.startTime),
               let firstEndValue = minutes(first.endTime),
               let secondStart = minutes(second.startTime),
               let secondEndValue = minutes(second.endTime) else { return false }
-        let firstEnd = firstEndValue > firstStart ? firstEndValue : firstEndValue + 1_440
-        let secondEnd = secondEndValue > secondStart ? secondEndValue : secondEndValue + 1_440
-        return [-1_440, 0, 1_440].contains { offset in
-            firstStart < secondEnd + offset && secondStart + offset < firstEnd
+        let weekMinutes = 7 * 1_440
+        let firstDuration = firstEndValue > firstStart
+            ? firstEndValue - firstStart
+            : firstEndValue + 1_440 - firstStart
+        let secondDuration = secondEndValue > secondStart
+            ? secondEndValue - secondStart
+            : secondEndValue + 1_440 - secondStart
+
+        for firstWeekday in first.weekdays {
+            let firstAbsoluteStart = (firstWeekday - 1) * 1_440 + firstStart
+            let firstAbsoluteEnd = firstAbsoluteStart + firstDuration
+            for secondWeekday in second.weekdays {
+                let secondAbsoluteStart = (secondWeekday - 1) * 1_440 + secondStart
+                let secondAbsoluteEnd = secondAbsoluteStart + secondDuration
+                if [-weekMinutes, 0, weekMinutes].contains(where: { offset in
+                    firstAbsoluteStart < secondAbsoluteEnd + offset &&
+                        secondAbsoluteStart + offset < firstAbsoluteEnd
+                }) {
+                    return true
+                }
+            }
         }
+        return false
     }
 
     static func window(for block: FocusBlock, on day: Date) -> DateInterval? {
+        guard block.archivedAt == nil,
+              block.weekdays.contains(Calendar.current.component(.weekday, from: day)) else {
+            return nil
+        }
         guard let startMinutes = minutes(block.startTime), let endMinutes = minutes(block.endTime) else {
             return nil
         }
@@ -113,5 +136,22 @@ enum DateTools {
 
     static func displayDate(_ date: Date) -> String {
         date.formatted(.dateTime.weekday(.wide).month(.wide).day().year())
+    }
+
+    static func weekdayName(_ weekday: Int, width: SymbolWidth = .abbreviated) -> String {
+        let symbols: [String]
+        switch width {
+        case .narrow:
+            symbols = Calendar.current.veryShortStandaloneWeekdaySymbols
+        case .abbreviated:
+            symbols = Calendar.current.shortStandaloneWeekdaySymbols
+        }
+        guard (1...symbols.count).contains(weekday) else { return "" }
+        return symbols[weekday - 1]
+    }
+
+    enum SymbolWidth {
+        case narrow
+        case abbreviated
     }
 }

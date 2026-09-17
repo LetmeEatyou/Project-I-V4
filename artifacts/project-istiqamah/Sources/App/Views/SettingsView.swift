@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 import UserNotifications
 
 struct SettingsView: View {
@@ -7,6 +8,8 @@ struct SettingsView: View {
     @Environment(\.openURL) private var openURL
     @State private var backupURL: URL?
     @State private var backupError: String?
+    @State private var showingBackupImporter = false
+    @State private var confirmingBackupRestore = false
     @State private var notificationStatus = "Checking…"
     @State private var backgroundRefreshStatus = "Checking…"
 
@@ -33,7 +36,9 @@ struct SettingsView: View {
                     Label("Dynamic Island & Lock Screen", systemImage: "flame.fill")
                         .foregroundStyle(AppTheme.flame)
                     LabeledContent("Status", value: store.liveActivityStatus)
+                    LabeledContent("Reminder sync", value: store.notificationSyncStatus)
                     LabeledContent("Background refresh", value: backgroundRefreshStatus)
+                    LabeledContent("Refresh request", value: store.backgroundScheduleStatus)
                     Text("ActivityKit schedules upcoming blocks on iOS 26 and starts the current block when the app is active on earlier supported versions.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -80,6 +85,10 @@ struct SettingsView: View {
                             Label("Share backup", systemImage: "paperplane")
                         }
                     }
+                    Button("Restore JSON backup", systemImage: "arrow.counterclockwise") {
+                        confirmingBackupRestore = true
+                    }
+                    LabeledContent("Local storage", value: store.storageStatus)
                     if let backupError {
                         Text(backupError)
                             .font(.caption)
@@ -104,6 +113,42 @@ struct SettingsView: View {
                 await loadNotificationStatus()
                 loadBackgroundRefreshStatus()
             }
+            .confirmationDialog(
+                "Restore backup?",
+                isPresented: $confirmingBackupRestore,
+                titleVisibility: .visible
+            ) {
+                Button("Choose backup file", role: .destructive) {
+                    showingBackupImporter = true
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Restoring replaces the current blocks, history, and preferences after the file passes validation.")
+            }
+            .fileImporter(
+                isPresented: $showingBackupImporter,
+                allowedContentTypes: [.json],
+                allowsMultipleSelection: false
+            ) { result in
+                restoreBackup(result)
+            }
+        }
+    }
+
+    private func restoreBackup(_ result: Result<[URL], Error>) {
+        do {
+            guard let url = try result.get().first else { return }
+            let hasAccess = url.startAccessingSecurityScopedResource()
+            defer {
+                if hasAccess {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+            try store.importBackup(from: url)
+            backupURL = nil
+            backupError = nil
+        } catch {
+            backupError = "Restore failed: \(error.localizedDescription)"
         }
     }
 

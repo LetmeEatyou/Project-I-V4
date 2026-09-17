@@ -11,7 +11,7 @@ struct TodayView: View {
     private var isToday: Bool { selectedKey == DateTools.key(Date()) }
 
     private var selectedSchedule: [ScheduledBlock] {
-        store.blocks.compactMap { block in
+        store.activeBlocks.compactMap { block in
             guard let window = DateTools.window(for: block, on: store.selectedDate) else { return nil }
             return ScheduledBlock(
                 block: block,
@@ -24,7 +24,7 @@ struct TodayView: View {
 
     private var featuredBlock: ScheduledBlock? {
         guard isToday else { return nil }
-        if let running = DateTools.activeBlock(in: store.blocks, at: now) {
+        if let running = DateTools.activeBlock(in: store.activeBlocks, at: now) {
             return running
         }
         return selectedSchedule.first {

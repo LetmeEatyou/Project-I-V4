@@ -9,7 +9,10 @@ final class AppStore: ObservableObject {
     @Published var selectedDate = Date()
     @Published private(set) var requestedBlockID: UUID?
     @Published private(set) var liveActivityStatus = "Checking…"
+    @Published private(set) var notificationSyncStatus = "Not synced yet"
+    @Published private(set) var backgroundScheduleStatus = "Not scheduled yet"
     @Published private(set) var notificationTestStatus: String?
+    @Published private(set) var storageStatus = "Ready"
     @Published private(set) var timelineDate = Date()
 
     private let storageURL: URL
@@ -18,11 +21,23 @@ final class AppStore: ObservableObject {
     private var refreshGeneration = 0
     private var transitionTask: Task<Void, Never>?
 
+    var activeBlocks: [FocusBlock] {
+        blocks.filter { $0.archivedAt == nil }
+    }
+
+    var archivedBlocks: [FocusBlock] {
+        blocks.filter { $0.archivedAt != nil }
+    }
+
     init() {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         let directory = support.appendingPathComponent("ProjectIstiqamah", isDirectory: true)
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        try? (directory as NSURL).setResourceValue(true, forKey: .isExcludedFromBackupKey)
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try (directory as NSURL).setResourceValue(true, forKey: .isExcludedFromBackupKey)
+        } catch {
+            storageStatus = "Storage setup warning: \(error.localizedDescription)"
+        }
         storageURL = directory.appendingPathComponent("data.json")
 
         let decoder = JSONDecoder()
@@ -42,10 +57,14 @@ final class AppStore: ObservableObject {
                 pausedBlocks = [:]
                 let unreadableURL = directory
                     .appendingPathComponent("data-unreadable-\(UUID().uuidString).json")
-                needsInitialPersist = (try? FileManager.default.moveItem(
-                    at: storageURL,
-                    to: unreadableURL
-                )) != nil
+                do {
+                    try FileManager.default.moveItem(at: storageURL, to: unreadableURL)
+                    storageStatus = "Recovered defaults; the unreadable data file was preserved."
+                    needsInitialPersist = true
+                } catch {
+                    storageStatus = "Data recovery failed: \(error.localizedDescription)"
+                    needsInitialPersist = false
+                }
             }
         } else {
             blocks = Self.seedBlocks
@@ -74,8 +93,32 @@ final class AppStore: ObservableObject {
     }
 
     func remove(_ block: FocusBlock) {
-        blocks.removeAll { $0.id == block.id }
+        archive(block)
+    }
+
+    func archive(_ block: FocusBlock) {
+        guard let index = blocks.firstIndex(where: { $0.id == block.id }),
+              blocks[index].archivedAt == nil else { return }
+        blocks[index].archivedAt = Date()
+        pausedBlocks = pausedBlocks.filter { !$0.key.hasPrefix("\(block.id.uuidString):") }
+        if requestedBlockID == block.id {
+            requestedBlockID = nil
+        }
         changed()
+    }
+
+    @discardableResult
+    func restore(_ block: FocusBlock) -> String? {
+        guard let index = blocks.firstIndex(where: { $0.id == block.id }),
+              blocks[index].archivedAt != nil else { return nil }
+        var restored = blocks[index]
+        restored.archivedAt = nil
+        if let conflict = activeBlocks.first(where: { DateTools.overlaps(restored, $0) }) {
+            return "This schedule overlaps \(conflict.name). Edit a time slot before restoring."
+        }
+        blocks[index].archivedAt = nil
+        changed()
+        return nil
     }
 
     func swapBlockTimeSlots(_ blockID: UUID, with targetID: UUID) {
@@ -84,10 +127,13 @@ final class AppStore: ObservableObject {
               let targetIndex = blocks.firstIndex(where: { $0.id == targetID }) else { return }
         let sourceStart = blocks[sourceIndex].startTime
         let sourceEnd = blocks[sourceIndex].endTime
+        let sourceWeekdays = blocks[sourceIndex].weekdays
         blocks[sourceIndex].startTime = blocks[targetIndex].startTime
         blocks[sourceIndex].endTime = blocks[targetIndex].endTime
+        blocks[sourceIndex].weekdays = blocks[targetIndex].weekdays
         blocks[targetIndex].startTime = sourceStart
         blocks[targetIndex].endTime = sourceEnd
+        blocks[targetIndex].weekdays = sourceWeekdays
         blocks.swapAt(sourceIndex, targetIndex)
         changed()
     }
@@ -169,7 +215,7 @@ final class AppStore: ObservableObject {
 
     func exportBackup() throws -> URL {
         let snapshot = AppSnapshot(
-            version: 3,
+            version: 4,
             exportedAt: Date(),
             blocks: blocks,
             preferences: preferences,
@@ -183,6 +229,38 @@ final class AppStore: ObservableObject {
             .appendingPathComponent("Project-Istiqamah-Backup.json")
         try data.write(to: url, options: .atomic)
         return url
+    }
+
+    func importBackup(from url: URL) throws {
+        let values = try url.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey])
+        guard values.isRegularFile != false else {
+            throw BackupImportError.invalid("Choose a regular JSON backup file.")
+        }
+        guard values.fileSize.map({ $0 <= Self.maximumBackupBytes }) ?? true else {
+            throw BackupImportError.invalid("The backup is larger than 5 MB.")
+        }
+        let data = try Data(contentsOf: url, options: .mappedIfSafe)
+        guard data.count <= Self.maximumBackupBytes else {
+            throw BackupImportError.invalid("The backup is larger than 5 MB.")
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let snapshot: AppSnapshot
+        do {
+            snapshot = try decoder.decode(AppSnapshot.self, from: data)
+        } catch {
+            throw BackupImportError.unreadable(error.localizedDescription)
+        }
+        try Self.validateBackup(snapshot)
+        blocks = snapshot.blocks
+        preferences = snapshot.preferences
+        pausedBlocks = snapshot.pausedBlocks ?? [:]
+        requestedBlockID = nil
+        selectedDate = Date()
+        followsToday = true
+        storageStatus = "Backup restored successfully."
+        persist()
+        refreshSystemFeatures()
     }
 
     func activateTimeline() {
@@ -202,14 +280,18 @@ final class AppStore: ObservableObject {
         timelineDate = now
         prunePausedBlocks(at: now)
         scheduleNextTransition(after: now)
-        let currentBlocks = blocks
+        let currentBlocks = activeBlocks
         let currentPausedBlocks = pausedBlocks
         let currentPreferences = preferences
-        BackgroundRefreshManager.shared.schedule(blocks: currentBlocks)
+        if let schedulingError = BackgroundRefreshManager.shared.schedule(blocks: currentBlocks) {
+            backgroundScheduleStatus = "Request failed: \(schedulingError)"
+        } else {
+            backgroundScheduleStatus = "Refresh requested"
+        }
         refreshGeneration &+= 1
         let generation = refreshGeneration
         Task { [weak self] in
-            async let notificationSync: Void = NotificationManager.shared.sync(
+            async let notificationSync = NotificationManager.shared.sync(
                 blocks: currentBlocks,
                 preferences: currentPreferences
             )
@@ -218,16 +300,19 @@ final class AppStore: ObservableObject {
                 pausedBlocks: currentPausedBlocks,
                 now: now
             )
-            let report = await activitySync
-            if let self, let report, generation == self.refreshGeneration {
-                self.liveActivityStatus = report.message
+            let notificationMessage = await notificationSync
+            let activityReport = await activitySync
+            if let self, generation == self.refreshGeneration {
+                self.notificationSyncStatus = notificationMessage
+                if let activityReport {
+                    self.liveActivityStatus = activityReport.message
+                }
             }
-            _ = await notificationSync
         }
     }
 
     func restartLiveActivity() {
-        let currentBlocks = blocks
+        let currentBlocks = activeBlocks
         let currentPausedBlocks = pausedBlocks
         liveActivityStatus = "Restarting…"
         refreshGeneration &+= 1
@@ -357,7 +442,7 @@ final class AppStore: ObservableObject {
 
     private func persist() {
         let snapshot = AppSnapshot(
-            version: 3,
+            version: 4,
             exportedAt: Date(),
             blocks: blocks,
             preferences: preferences,
@@ -366,8 +451,72 @@ final class AppStore: ObservableObject {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
-        guard let data = try? encoder.encode(snapshot) else { return }
-        try? data.write(to: storageURL, options: .atomic)
+        do {
+            let data = try encoder.encode(snapshot)
+            try data.write(to: storageURL, options: .atomic)
+            if storageStatus == "Ready" || storageStatus == "Saved" {
+                storageStatus = "Saved"
+            }
+        } catch {
+            storageStatus = "Save failed: \(error.localizedDescription)"
+        }
+    }
+
+    static func validateBackup(_ snapshot: AppSnapshot) throws {
+        guard (1...4).contains(snapshot.version) else {
+            throw BackupImportError.unsupportedVersion(snapshot.version)
+        }
+        guard snapshot.blocks.count <= 500 else {
+            throw BackupImportError.invalid("The backup contains too many blocks.")
+        }
+        let blockIDs = snapshot.blocks.map(\.id)
+        let blockIDSet = Set(blockIDs)
+        guard blockIDSet.count == blockIDs.count else {
+            throw BackupImportError.invalid("The backup contains duplicate block identifiers.")
+        }
+
+        let pausedBlocks = snapshot.pausedBlocks ?? [:]
+        guard pausedBlocks.count <= 500,
+              pausedBlocks.keys.allSatisfy({ key in
+                  let parts = key.split(separator: ":", omittingEmptySubsequences: false)
+                  guard parts.count == 2,
+                        let blockID = UUID(uuidString: String(parts[0])),
+                        blockIDSet.contains(blockID) else { return false }
+                  return DateTools.date(from: String(parts[1])) != nil
+              }) else {
+            throw BackupImportError.invalid("The backup contains invalid paused-block state.")
+        }
+
+        for block in snapshot.blocks {
+            guard !block.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  DateTools.isValid(time: block.startTime),
+                  DateTools.isValid(time: block.endTime),
+                  !block.weekdays.isEmpty,
+                  block.weekdays.allSatisfy({ (1...7).contains($0) }),
+                  block.actions.count <= 5 else {
+                throw BackupImportError.invalid("A block contains an invalid name, time, weekday, or action count.")
+            }
+            let actionIDs = block.actions.map(\.id)
+            guard Set(actionIDs).count == actionIDs.count,
+                  block.actions.allSatisfy({ !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }),
+                  block.completedDates.allSatisfy({ DateTools.date(from: $0) != nil }),
+                  block.actions.allSatisfy({ action in
+                      action.completedDates.allSatisfy { DateTools.date(from: $0) != nil }
+                  }) else {
+                throw BackupImportError.invalid("A block contains invalid actions or completion history.")
+            }
+        }
+
+        let active = snapshot.blocks.filter { $0.archivedAt == nil }
+        for index in active.indices {
+            for comparison in active.indices where comparison > index {
+                if DateTools.overlaps(active[index], active[comparison]) {
+                    throw BackupImportError.invalid(
+                        "\(active[index].name) overlaps \(active[comparison].name)."
+                    )
+                }
+            }
+        }
     }
 
     private func haptic(_ style: UINotificationFeedbackGenerator.FeedbackType) {
@@ -407,4 +556,23 @@ final class AppStore: ObservableObject {
             note: "Prepare tomorrow before sleep."
         )
     ]
+
+    private static let maximumBackupBytes = 5 * 1_024 * 1_024
+}
+
+private enum BackupImportError: LocalizedError {
+    case unreadable(String)
+    case unsupportedVersion(Int)
+    case invalid(String)
+
+    var errorDescription: String? {
+        switch self {
+        case let .unreadable(message):
+            "The selected file is not a valid Project Istiqamah backup. \(message)"
+        case let .unsupportedVersion(version):
+            "Backup version \(version) is not supported by this app."
+        case let .invalid(message):
+            "The backup could not be restored. \(message)"
+        }
+    }
 }

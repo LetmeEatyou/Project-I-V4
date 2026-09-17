@@ -7,13 +7,64 @@ struct BlockAction: Identifiable, Codable, Hashable {
 }
 
 struct FocusBlock: Identifiable, Codable, Hashable {
-    var id: UUID = UUID()
+    static let everyDay = Set(1...7)
+
+    var id: UUID
     var name: String
     var startTime: String
     var endTime: String
     var note: String
-    var actions: [BlockAction] = []
-    var completedDates: Set<String> = []
+    var actions: [BlockAction]
+    var completedDates: Set<String>
+    var weekdays: Set<Int>
+    var archivedAt: Date?
+
+    init(
+        id: UUID = UUID(),
+        name: String,
+        startTime: String,
+        endTime: String,
+        note: String,
+        actions: [BlockAction] = [],
+        completedDates: Set<String> = [],
+        weekdays: Set<Int> = FocusBlock.everyDay,
+        archivedAt: Date? = nil
+    ) {
+        self.id = id
+        self.name = name
+        self.startTime = startTime
+        self.endTime = endTime
+        self.note = note
+        self.actions = actions
+        self.completedDates = completedDates
+        self.weekdays = weekdays
+        self.archivedAt = archivedAt
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case startTime
+        case endTime
+        case note
+        case actions
+        case completedDates
+        case weekdays
+        case archivedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        name = try values.decode(String.self, forKey: .name)
+        startTime = try values.decode(String.self, forKey: .startTime)
+        endTime = try values.decode(String.self, forKey: .endTime)
+        note = try values.decodeIfPresent(String.self, forKey: .note) ?? ""
+        actions = try values.decodeIfPresent([BlockAction].self, forKey: .actions) ?? []
+        completedDates = try values.decodeIfPresent(Set<String>.self, forKey: .completedDates) ?? []
+        weekdays = try values.decodeIfPresent(Set<Int>.self, forKey: .weekdays) ?? Self.everyDay
+        archivedAt = try values.decodeIfPresent(Date.self, forKey: .archivedAt)
+    }
 }
 
 enum ReminderSound: String, CaseIterable, Codable, Identifiable, Sendable {

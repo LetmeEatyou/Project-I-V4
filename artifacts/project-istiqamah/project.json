@@ -89,6 +89,36 @@
           "TARGETED_DEVICE_FAMILY": "1"
         }
       }
+    },
+    "ProjectIstiqamahTests": {
+      "type": "bundle.unit-test",
+      "platform": "iOS",
+      "sources": [
+        { "path": "Tests/AppTests" }
+      ],
+      "dependencies": [
+        { "target": "ProjectIstiqamah" }
+      ],
+      "settings": {
+        "base": {
+          "PRODUCT_BUNDLE_IDENTIFIER": "com.projectistiqamah.app.tests"
+        }
+      }
+    },
+    "ProjectIstiqamahUITests": {
+      "type": "bundle.ui-testing",
+      "platform": "iOS",
+      "sources": [
+        { "path": "Tests/UITests" }
+      ],
+      "dependencies": [
+        { "target": "ProjectIstiqamah" }
+      ],
+      "settings": {
+        "base": {
+          "PRODUCT_BUNDLE_IDENTIFIER": "com.projectistiqamah.app.uitests"
+        }
+      }
     }
   },
   "schemes": {
@@ -96,8 +126,16 @@
       "build": {
         "targets": {
           "ProjectIstiqamah": "all",
-          "ProjectIstiqamahWidgets": "all"
+          "ProjectIstiqamahWidgets": "all",
+          "ProjectIstiqamahTests": ["test"],
+          "ProjectIstiqamahUITests": ["test"]
         }
+      },
+      "test": {
+        "targets": [
+          "ProjectIstiqamahTests",
+          "ProjectIstiqamahUITests"
+        ]
       },
       "run": { "config": "Debug" },
       "archive": { "config": "Release" }

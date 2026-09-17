@@ -332,3 +332,36 @@ private struct FlameIcon: View {
             .accessibilityLabel(isActive ? "Block running" : "Block paused")
     }
 }
+
+#if DEBUG
+private let previewAttributes = BlockActivityAttributes(
+    blockID: UUID(),
+    dateKey: "2026-09-17"
+)
+
+private let previewState = BlockActivityAttributes.ContentState(
+    blockName: "Deep Work Session",
+    startDate: Date().addingTimeInterval(-20 * 60),
+    endDate: Date().addingTimeInterval(40 * 60),
+    timeLabel: "09:00 – 10:00",
+    pausedAt: nil
+)
+
+#Preview("Lock Screen", as: .content, using: previewAttributes) {
+    BlockLiveActivityWidget()
+} contentStates: {
+    previewState
+}
+
+#Preview("Dynamic Island Compact", as: .dynamicIsland(.compact), using: previewAttributes) {
+    BlockLiveActivityWidget()
+} contentStates: {
+    previewState
+}
+
+#Preview("Dynamic Island Expanded", as: .dynamicIsland(.expanded), using: previewAttributes) {
+    BlockLiveActivityWidget()
+} contentStates: {
+    previewState
+}
+#endif

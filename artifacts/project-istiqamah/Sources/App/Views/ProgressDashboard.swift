@@ -4,6 +4,7 @@ import SwiftUI
 private struct DayTotal: Identifiable {
     let date: Date
     let count: Int
+    let scheduled: Int
     var id: Date { date }
 }
 
@@ -18,7 +19,12 @@ struct ProgressDashboard: View {
             let key = DateTools.key(date)
             return DayTotal(
                 date: date,
-                count: store.blocks.filter { $0.completedDates.contains(key) }.count
+                count: store.blocks.filter { $0.completedDates.contains(key) }.count,
+                scheduled: store.blocks.filter { block in
+                    let scheduledDay = block.weekdays.contains(calendar.component(.weekday, from: date))
+                    let notYetArchived = block.archivedAt.map { calendar.startOfDay(for: $0) > date } ?? true
+                    return scheduledDay && (notYetArchived || block.completedDates.contains(key))
+                }.count
             )
         }
     }
@@ -32,8 +38,9 @@ struct ProgressDashboard: View {
     }
 
     private var consistency: Int {
-        guard !store.blocks.isEmpty else { return 0 }
-        return Int((Double(completedLastSevenDays) / Double(store.blocks.count * 7) * 100).rounded())
+        let scheduled = history.reduce(0) { $0 + $1.scheduled }
+        guard scheduled > 0 else { return 0 }
+        return min(100, Int((Double(completedLastSevenDays) / Double(scheduled) * 100).rounded()))
     }
 
     private var streak: Int {
@@ -93,7 +100,7 @@ struct ProgressDashboard: View {
                             .foregroundStyle(AppTheme.primary.gradient)
                             .cornerRadius(5)
                         }
-                        .chartYScale(domain: 0...max(1, store.blocks.count))
+                        .chartYScale(domain: 0...max(1, history.map(\.scheduled).max() ?? 0))
                         .chartXAxis {
                             AxisMarks(values: .stride(by: .day)) { value in
                                 AxisValueLabel(format: .dateTime.weekday(.narrow))
@@ -119,6 +126,11 @@ struct ProgressDashboard: View {
                             HStack {
                                 Circle().fill(AppTheme.primary).frame(width: 7, height: 7)
                                 Text(block.name).lineLimit(1)
+                                if block.archivedAt != nil {
+                                    Text("ARCHIVED")
+                                        .font(.system(size: 7, weight: .bold))
+                                        .foregroundStyle(AppTheme.muted)
+                                }
                                 Spacer()
                                 Text("\(block.completedDates.count) days")
                                     .font(.caption)

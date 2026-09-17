@@ -8,18 +8,22 @@ actor NotificationManager {
     private let prefix = "istiqamah.block."
     private var syncGeneration = 0
 
-    func requestPermission() async -> Bool {
+    func requestPermission() async throws -> Bool {
         let settings = await center.notificationSettings()
         if settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional {
             return true
         }
         guard settings.authorizationStatus == .notDetermined else { return false }
-        return (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
+        return try await center.requestAuthorization(options: [.alert, .sound, .badge])
     }
 
     func sendTest(preferences: AppPreferences) async -> String {
-        guard await requestPermission() else {
-            return "Notifications are disabled in iOS Settings."
+        do {
+            guard try await requestPermission() else {
+                return "Notifications are disabled in iOS Settings."
+            }
+        } catch {
+            return "Permission request failed: \(error.localizedDescription)"
         }
 
         let content = UNMutableNotificationContent()
@@ -41,20 +45,24 @@ actor NotificationManager {
         }
     }
 
-    func sync(blocks: [FocusBlock], preferences: AppPreferences, now: Date = Date()) async {
+    func sync(blocks: [FocusBlock], preferences: AppPreferences, now: Date = Date()) async -> String {
         syncGeneration &+= 1
         let generation = syncGeneration
         let generationID = UUID().uuidString
         let pending = await center.pendingNotificationRequests()
-        guard generation == syncGeneration else { return }
+        guard generation == syncGeneration else { return "Superseded by a newer sync" }
         let owned = pending.map(\.identifier).filter { $0.hasPrefix(prefix) }
         center.removePendingNotificationRequests(withIdentifiers: owned)
 
-        guard preferences.reminders,
-              await requestPermission(),
-              generation == syncGeneration else {
-            return
+        guard preferences.reminders else { return "Reminders are off" }
+        do {
+            guard try await requestPermission() else {
+                return "Notification permission is denied"
+            }
+        } catch {
+            return "Notification permission failed: \(error.localizedDescription)"
         }
+        guard generation == syncGeneration else { return "Superseded by a newer sync" }
 
         let category = UNNotificationCategory(
             identifier: "ISTIQAMAH_BLOCK",
@@ -66,6 +74,8 @@ actor NotificationManager {
 
         let schedule = DateTools.schedule(for: blocks, around: now)
         var count = 0
+        var failed = 0
+        var attempted = 0
         for item in schedule where !item.block.completedDates.contains(item.dateKey) {
             let reminder = item.start.addingTimeInterval(TimeInterval(-preferences.reminderMinutes * 60))
             let alerts: [(kind: String, date: Date, title: String, body: String)] = [
@@ -89,8 +99,9 @@ actor NotificationManager {
                 )
             ]
 
-            for alert in alerts where alert.date > now && count < 60 {
-                guard generation == syncGeneration else { return }
+            for alert in alerts where alert.date > now && attempted < 60 {
+                guard generation == syncGeneration else { return "Superseded by a newer sync" }
+                attempted += 1
                 let content = UNMutableNotificationContent()
                 content.title = alert.title
                 content.body = alert.body
@@ -108,18 +119,26 @@ actor NotificationManager {
                 )
                 let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
                 let identifier = "\(prefix)\(generationID).\(item.id).\(alert.kind)"
-                try? await center.add(UNNotificationRequest(
-                    identifier: identifier,
-                    content: content,
-                    trigger: trigger
-                ))
+                do {
+                    try await center.add(UNNotificationRequest(
+                        identifier: identifier,
+                        content: content,
+                        trigger: trigger
+                    ))
+                    count += 1
+                } catch {
+                    failed += 1
+                }
                 guard generation == syncGeneration else {
                     center.removePendingNotificationRequests(withIdentifiers: [identifier])
-                    return
+                    return "Superseded by a newer sync"
                 }
-                count += 1
             }
         }
+        if failed > 0 {
+            return "Scheduled \(count) reminders; \(failed) failed"
+        }
+        return "Scheduled \(count) reminders"
     }
 
     private func notificationSound(for selection: ReminderSound) -> UNNotificationSound {

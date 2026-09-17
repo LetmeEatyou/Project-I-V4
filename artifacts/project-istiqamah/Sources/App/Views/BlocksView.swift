@@ -4,12 +4,13 @@ struct BlocksView: View {
     @EnvironmentObject private var store: AppStore
     @State private var draft: FocusBlock?
     @State private var editMode: EditMode = .inactive
+    @State private var restoreError: String?
 
     var body: some View {
         NavigationStack {
             List {
                 Section {
-                    ForEach(store.blocks) { block in
+                    ForEach(store.activeBlocks) { block in
                         HStack(spacing: 14) {
                             Image(systemName: "clock")
                                 .foregroundStyle(AppTheme.primary)
@@ -23,6 +24,9 @@ struct BlocksView: View {
                                 Text("\(block.startTime) – \(block.endTime) · \(block.actions.count) actions")
                                     .font(.caption)
                                     .foregroundStyle(AppTheme.muted)
+                                Text(weekdaySummary(block.weekdays))
+                                    .font(.caption2)
+                                    .foregroundStyle(AppTheme.primary)
                             }
                             Spacer()
                         }
@@ -34,14 +38,48 @@ struct BlocksView: View {
                         .accessibilityHint("Double-tap to edit. Use Reorder to move this block into another time slot.")
                         .listRowBackground(AppTheme.card)
                         .swipeActions {
-                            Button(role: .destructive) { store.remove(block) } label: {
-                                Label("Delete", systemImage: "trash")
+                            Button { store.archive(block) } label: {
+                                Label("Archive", systemImage: "archivebox")
                             }
+                            .tint(.orange)
                         }
                     }
                     .onMove(perform: moveBlocks)
                 } footer: {
                     Text("Tap Reorder, then drag a block by its handle. The moved block and destination block exchange time slots.")
+                }
+
+                if !store.archivedBlocks.isEmpty {
+                    Section("Archived") {
+                        ForEach(store.archivedBlocks) { block in
+                            HStack(spacing: 12) {
+                                Image(systemName: "archivebox.fill")
+                                    .foregroundStyle(AppTheme.muted)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(block.name)
+                                        .font(.subheadline.weight(.medium))
+                                    Text("\(block.startTime) – \(block.endTime) · \(weekdaySummary(block.weekdays))")
+                                        .font(.caption)
+                                        .foregroundStyle(AppTheme.muted)
+                                }
+                                Spacer()
+                                Button {
+                                    draft = block
+                                } label: {
+                                    Image(systemName: "pencil")
+                                }
+                                .buttonStyle(.borderless)
+                                .accessibilityLabel("Edit \(block.name)")
+                                Button("Restore") {
+                                    restoreError = store.restore(block)
+                                }
+                                .buttonStyle(.bordered)
+                                .tint(AppTheme.primary)
+                                .controlSize(.small)
+                            }
+                            .listRowBackground(AppTheme.card)
+                        }
+                    }
                 }
             }
             .environment(\.editMode, $editMode)
@@ -63,7 +101,7 @@ struct BlocksView: View {
                 }
             }
             .sheet(item: $draft) { block in
-                BlockEditor(block: block, existingBlocks: store.blocks) { saved in
+                BlockEditor(block: block, existingBlocks: store.activeBlocks) { saved in
                     if store.blocks.contains(where: { $0.id == saved.id }) {
                         store.update(saved)
                     } else {
@@ -72,16 +110,30 @@ struct BlocksView: View {
                     draft = nil
                 }
             }
+            .alert("Could not restore block", isPresented: Binding(
+                get: { restoreError != nil },
+                set: { if !$0 { restoreError = nil } }
+            )) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(restoreError ?? "")
+            }
         }
     }
 
     private func moveBlocks(from sourceOffsets: IndexSet, to destination: Int) {
+        let activeBlocks = store.activeBlocks
         guard sourceOffsets.count == 1,
               let sourceIndex = sourceOffsets.first,
-              store.blocks.indices.contains(sourceIndex) else { return }
+              activeBlocks.indices.contains(sourceIndex) else { return }
         let targetIndex = destination > sourceIndex ? destination - 1 : destination
-        guard store.blocks.indices.contains(targetIndex), targetIndex != sourceIndex else { return }
-        store.swapBlockTimeSlots(store.blocks[sourceIndex].id, with: store.blocks[targetIndex].id)
+        guard activeBlocks.indices.contains(targetIndex), targetIndex != sourceIndex else { return }
+        store.swapBlockTimeSlots(activeBlocks[sourceIndex].id, with: activeBlocks[targetIndex].id)
+    }
+
+    private func weekdaySummary(_ weekdays: Set<Int>) -> String {
+        if weekdays == FocusBlock.everyDay { return "Every day" }
+        return weekdays.sorted().map { DateTools.weekdayName($0) }.joined(separator: " · ")
     }
 }
 
@@ -112,6 +164,10 @@ private struct BlockEditor: View {
                     TextField("End time (HH:MM)", text: $block.endTime)
                         .keyboardType(.numbersAndPunctuation)
                     TextField("Note", text: $block.note, axis: .vertical)
+                }
+
+                Section("Scheduled days") {
+                    WeekdayPicker(selection: $block.weekdays)
                 }
 
                 Section("Actions · up to 5") {
@@ -160,8 +216,9 @@ private struct BlockEditor: View {
             .map { $0 }
         guard !block.name.isEmpty,
               DateTools.isValid(time: block.startTime),
-              DateTools.isValid(time: block.endTime) else {
-            errorMessage = "Add a name and valid 24-hour times such as 05:00."
+              DateTools.isValid(time: block.endTime),
+              !block.weekdays.isEmpty else {
+            errorMessage = "Add a name, valid 24-hour times such as 05:00, and at least one day."
             return
         }
         if let overlappingBlock = existingBlocks.first(where: {
@@ -171,5 +228,36 @@ private struct BlockEditor: View {
             return
         }
         onSave(block)
+    }
+}
+
+private struct WeekdayPicker: View {
+    @Binding var selection: Set<Int>
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 7)
+
+    var body: some View {
+        LazyVGrid(columns: columns, spacing: 6) {
+            ForEach(1...7, id: \.self) { weekday in
+                let selected = selection.contains(weekday)
+                Button {
+                    if selected {
+                        selection.remove(weekday)
+                    } else {
+                        selection.insert(weekday)
+                    }
+                } label: {
+                    Text(DateTools.weekdayName(weekday, width: .narrow))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(selected ? Color.white : AppTheme.muted)
+                        .frame(width: 34, height: 34)
+                        .background(selected ? AppTheme.primary : AppTheme.raised)
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(DateTools.weekdayName(weekday))
+                .accessibilityValue(selected ? "Selected" : "Not selected")
+            }
+        }
+        .padding(.vertical, 4)
     }
 }

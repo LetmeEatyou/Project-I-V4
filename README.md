@@ -22,10 +22,10 @@ The native application lives in [`artifacts/project-istiqamah`](artifacts/projec
 | Area | Implemented behavior |
 | --- | --- |
 | App navigation | Native SwiftUI tabs for Today, Blocks, Progress, and Settings |
-| Block planning | Create, edit, delete, and use the native Reorder mode to swap block time slots; overlapping schedules are rejected, while names, actions, and completion history stay with each block |
+| Block planning | Create and edit weekday schedules, use native Reorder mode to swap complete schedule slots, and archive or restore blocks without losing completion history |
 | Daily view | Previous/next-day navigation, return to today, a running block with live actions or the next upcoming block, and a Start a block shortcut when nothing remains scheduled |
 | Completion | Mark blocks and individual actions complete after their start time; Today's System shows date-specific Done/Undone action status |
-| Progress | Seven-day chart, completed-block total, practiced-day count, consistency percentage, current streak, and per-block completion totals |
+| Progress | Weekday-aware seven-day chart, completed-block total, practiced-day count, consistency percentage, current streak, and active or archived per-block totals |
 | Reminders | Time-sensitive alerts before a block, when it starts, and when it ends; the early reminder is configurable to 5, 10, or 15 minutes |
 | Reminder sounds | System Default, Gentle Chime, Bright Bell, and Focus Pulse choices, plus a two-second in-app test reminder |
 | Live Activities | Starts or updates the current block, removes completed or outdated activities, schedules upcoming starts on iOS 26, and provides status, refresh, and restart controls in Settings |
@@ -33,9 +33,10 @@ The native application lives in [`artifacts/project-istiqamah`](artifacts/projec
 | Dynamic Island | Compact icon, block name, and remaining time; expanded timer, progress, Pause/Resume, and End controls; animated native flame while running |
 | Lock Screen | Minimal block name, schedule, live countdown, progress, Pause/Resume, End, and tap-to-open behavior |
 | Deep links | Notification and Live Activity taps open the Today tab on the relevant date and block; an ended-block link can record completion |
-| Local data | Codable JSON persistence in Application Support, preservation of an unreadable data file for recovery, and exclusion of private app data from device/iCloud backup |
+| Local data | Codable JSON persistence in Application Support, visible save/recovery failures, preservation of unreadable data, and exclusion of private app data from device/iCloud backup |
 | Preferences | Reminder toggle, reminder timing, sound choice, haptic toggle, notification permission status, and shortcut to iOS Settings |
-| Backup | Pretty-printed JSON export through the native share sheet |
+| Backup | Pretty-printed JSON export and validated, size-bounded restore through native share and file-import sheets |
+| Verification | XCTest coverage for schedules, migration, archives, and backup validation; UI navigation/reorder smoke test; Lock Screen and compact/expanded Dynamic Island preview fixtures |
 | CI package | Manual or version-tag GitHub Action builds the app and embedded Live Activity extension into an unsigned IPA |
 
 The code and project configuration for these behaviors are present. The JSON
@@ -62,6 +63,15 @@ open ProjectIstiqamah.xcodeproj
 Choose an Apple development team in Xcode, then run the `ProjectIstiqamah`
 scheme on an iPhone. Live Activities require a physical supported device for
 complete Dynamic Island testing.
+
+Run the native test targets from Xcode with Product → Test, or from macOS:
+
+```bash
+xcodebuild test \
+  -project ProjectIstiqamah.xcodeproj \
+  -scheme ProjectIstiqamah \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+```
 
 ## Unsigned IPA
 
@@ -96,12 +106,11 @@ unsigned IPA artifact. See [`docs/github-actions-ios.md`](docs/github-actions-io
 - Dynamic Island is available only on supported iPhone models. The flame is an
   animated native SF Symbol, not a bundled GIF.
 - An unsigned IPA must be signed before it can be installed on an iPhone.
-- The app exports backups but does not import them yet.
-- Repeat schedules, weekday selection, snooze, templates, tags, search, and
-  archives are not implemented.
+- Snooze, templates, tags, and search are not implemented.
 - Screen Time integration still requires Apple's Family Controls entitlement.
 - Accessibility and localization need a complete device audit.
-- Native unit, UI, and snapshot tests remain to be added.
+- Dynamic Island preview fixtures still require Xcode and a supported iPhone
+  to confirm the final system-controlled geometry and transitions.
 
 ## Data and privacy
 
