@@ -14,6 +14,7 @@ final class AppStore: ObservableObject {
 
     private let storageURL: URL
     private var pausedBlocks: [String: Date]
+    private var followsToday = true
     private var refreshGeneration = 0
     private var transitionTask: Task<Void, Never>?
 
@@ -56,6 +57,9 @@ final class AppStore: ObservableObject {
         if needsInitialPersist {
             persist()
         }
+        BlockLiveActivityActionBridge.shared.register { [weak self] action in
+            self?.handleLiveActivityAction(action)
+        }
     }
 
     func add(_ block: FocusBlock) {
@@ -74,6 +78,19 @@ final class AppStore: ObservableObject {
         changed()
     }
 
+    func moveBlock(_ blockID: UUID, relativeTo targetID: UUID, placeAfter: Bool) {
+        guard blockID != targetID,
+              let sourceIndex = blocks.firstIndex(where: { $0.id == blockID }),
+              blocks.contains(where: { $0.id == targetID }) else { return }
+        let previousOrder = blocks.map(\.id)
+        let movingBlock = blocks.remove(at: sourceIndex)
+        guard let targetIndex = blocks.firstIndex(where: { $0.id == targetID }) else { return }
+        let destination = targetIndex + (placeAfter ? 1 : 0)
+        blocks.insert(movingBlock, at: min(destination, blocks.endIndex))
+        guard blocks.map(\.id) != previousOrder else { return }
+        changed()
+    }
+
     func toggleBlock(_ blockID: UUID, dateKey: String) {
         guard let index = blocks.firstIndex(where: { $0.id == blockID }) else { return }
         if blocks[index].completedDates.contains(dateKey) {
@@ -82,6 +99,7 @@ final class AppStore: ObservableObject {
             guard canRecordCompletion(for: blocks[index], dateKey: dateKey) else { return }
             blocks[index].completedDates.insert(dateKey)
             pausedBlocks.removeValue(forKey: scheduleKey(blockID: blockID, dateKey: dateKey))
+            resumeTodayAfterEnding(blockID)
             haptic(.success)
         }
         changed()
@@ -109,6 +127,7 @@ final class AppStore: ObservableObject {
     func selectDate(_ date: Date) {
         requestedBlockID = nil
         selectedDate = date
+        followsToday = DateTools.key(date) == DateTools.key(Date())
     }
 
     func handle(_ route: AppRoute) {
@@ -117,6 +136,7 @@ final class AppStore: ObservableObject {
               blocks.contains(where: { $0.id == blockID }) else { return }
         if let date = DateTools.date(from: dateKey) {
             selectedDate = date
+            followsToday = false
         }
         requestedBlockID = blockID
         switch route.action {
@@ -126,7 +146,6 @@ final class AppStore: ObservableObject {
             setPaused(false, blockID: blockID, dateKey: dateKey)
         case "end":
             endBlock(blockID, dateKey: dateKey)
-            requestedBlockID = nil
         case "complete":
             guard let block = blocks.first(where: { $0.id == blockID }),
                   let date = DateTools.date(from: dateKey),
@@ -175,6 +194,9 @@ final class AppStore: ObservableObject {
     }
 
     func refreshSystemFeatures(now: Date = Date()) {
+        if followsToday, DateTools.key(selectedDate) != DateTools.key(now) {
+            selectedDate = now
+        }
         clearExpiredRoute(at: now)
         timelineDate = now
         prunePausedBlocks(at: now)
@@ -233,6 +255,15 @@ final class AppStore: ObservableObject {
         refreshSystemFeatures()
     }
 
+    private func handleLiveActivityAction(_ action: BlockLiveActivityAction) {
+        switch action {
+        case let .setPaused(blockID, dateKey, paused):
+            setPaused(paused, blockID: blockID, dateKey: dateKey)
+        case let .end(blockID, dateKey):
+            endBlock(blockID, dateKey: dateKey)
+        }
+    }
+
     private func setPaused(_ paused: Bool, blockID: UUID, dateKey: String) {
         guard let block = blocks.first(where: { $0.id == blockID }),
               let date = DateTools.date(from: dateKey),
@@ -255,6 +286,7 @@ final class AppStore: ObservableObject {
               !blocks[index].completedDates.contains(dateKey) else { return }
         blocks[index].completedDates.insert(dateKey)
         pausedBlocks.removeValue(forKey: scheduleKey(blockID: blockID, dateKey: dateKey))
+        resumeTodayAfterEnding(blockID)
         haptic(.success)
         changed()
     }
@@ -280,6 +312,13 @@ final class AppStore: ObservableObject {
         "\(blockID.uuidString):\(dateKey)"
     }
 
+    private func resumeTodayAfterEnding(_ blockID: UUID) {
+        guard requestedBlockID == blockID else { return }
+        requestedBlockID = nil
+        selectedDate = Date()
+        followsToday = true
+    }
+
     private func clearExpiredRoute(at now: Date) {
         guard let requestedBlockID,
               let block = blocks.first(where: { $0.id == requestedBlockID }),
@@ -287,6 +326,7 @@ final class AppStore: ObservableObject {
               now >= window.end else { return }
         self.requestedBlockID = nil
         selectedDate = now
+        followsToday = true
     }
 
     private func prunePausedBlocks(at now: Date) {

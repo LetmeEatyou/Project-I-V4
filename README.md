@@ -22,9 +22,9 @@ The native application lives in [`artifacts/project-istiqamah`](artifacts/projec
 | Area | Implemented behavior |
 | --- | --- |
 | App navigation | Native SwiftUI tabs for Today, Blocks, Progress, and Settings |
-| Block planning | Create, edit, and delete blocks with a name, note, validated 24-hour start/end times, overnight ranges, and up to five checklist actions |
-| Daily view | Previous/next-day navigation, return to today, timestamp-based selection of the running or next block, a live countdown, and progress through the active block |
-| Completion | Mark blocks and individual actions complete after their start time; completion is stored separately for each date |
+| Block planning | Create, edit, delete, and long-press drag to reorder blocks with a name, note, validated 24-hour start/end times, overnight ranges, and up to five checklist actions |
+| Daily view | Previous/next-day navigation, return to today, a running-block-only focus card with live countdown and actions, and a Start a block shortcut when nothing is active |
+| Completion | Mark blocks and individual actions complete after their start time; Today's System shows date-specific Done/Undone action status |
 | Progress | Seven-day chart, completed-block total, practiced-day count, consistency percentage, current streak, and per-block completion totals |
 | Reminders | Time-sensitive alerts before a block, when it starts, and when it ends; the early reminder is configurable to 5, 10, or 15 minutes |
 | Reminder sounds | System Default, Gentle Chime, Bright Bell, and Focus Pulse choices, plus a two-second in-app test reminder |

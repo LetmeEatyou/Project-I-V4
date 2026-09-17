@@ -4,6 +4,7 @@ import SwiftUI
 struct TodayView: View {
     @EnvironmentObject private var store: AppStore
     @State private var now = Date()
+    let onStartBlock: () -> Void
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     private var selectedKey: String { DateTools.key(store.selectedDate) }
@@ -21,19 +22,9 @@ struct TodayView: View {
         }.sorted { $0.start < $1.start }
     }
 
-    private var focus: ScheduledBlock? {
-        if let requestedBlockID = store.requestedBlockID,
-           let requested = selectedSchedule.first(where: { $0.block.id == requestedBlockID }) {
-            return requested
-        }
-        if isToday, let active = DateTools.activeBlock(in: store.blocks, at: now) {
-            return active
-        }
-        let incomplete = selectedSchedule.filter { !$0.block.completedDates.contains($0.dateKey) }
-        return incomplete.first(where: { $0.start <= now && now < $0.end })
-            ?? incomplete.first(where: { $0.start > now })
-            ?? incomplete.first
-            ?? selectedSchedule.first
+    private var runningBlock: ScheduledBlock? {
+        guard isToday else { return nil }
+        return DateTools.activeBlock(in: store.blocks, at: now)
     }
 
     var body: some View {
@@ -41,16 +32,11 @@ struct TodayView: View {
             ScrollView {
                 VStack(spacing: 20) {
                     dateCard
-                    if let focus {
-                        focusCard(focus)
-                        actionsCard(focus)
+                    if let runningBlock {
+                        focusCard(runningBlock)
+                        actionsCard(runningBlock)
                     } else {
-                        ContentUnavailableView(
-                            "No blocks yet",
-                            systemImage: "calendar.badge.plus",
-                            description: Text("Create your first focus block in Blocks.")
-                        )
-                        .frame(minHeight: 260)
+                        startBlockCard
                     }
                     dayList
                 }
@@ -62,6 +48,28 @@ struct TodayView: View {
         }
         .onReceive(timer) { now = $0 }
         .onReceive(store.$timelineDate) { now = $0 }
+    }
+
+    private var startBlockCard: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "play.circle.fill")
+                .font(.system(size: 38))
+                .foregroundStyle(AppTheme.primary)
+            Text("No block is running")
+                .font(.headline)
+            Text("Start a block or adjust its time in Blocks.")
+                .font(.subheadline)
+                .foregroundStyle(AppTheme.muted)
+                .multilineTextAlignment(.center)
+            Button("Start a block", systemImage: "plus") {
+                onStartBlock()
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(AppTheme.primary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(28)
+        .istiqamahCard()
     }
 
     private var dateCard: some View {
@@ -142,7 +150,7 @@ struct TodayView: View {
                     .buttonStyle(.bordered)
                     .tint(AppTheme.primary)
                 }
-                Button(completed ? "Completed" : "Mark complete") {
+                Button(completed ? "Completed" : phase == .running ? "End" : "Mark complete") {
                     store.toggleBlock(item.block.id, dateKey: item.dateKey)
                 }
                 .buttonStyle(.borderedProminent)
@@ -195,17 +203,61 @@ struct TodayView: View {
                 .tracking(1.4)
                 .foregroundStyle(AppTheme.muted)
             ForEach(selectedSchedule) { item in
-                HStack(spacing: 12) {
-                    Image(systemName: item.block.completedDates.contains(item.dateKey) ? "checkmark.circle.fill" : "circle")
-                        .foregroundStyle(AppTheme.primary)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(item.block.name).font(.subheadline.weight(.medium))
-                        Text("\(item.block.startTime) – \(item.block.endTime)")
+                let completed = item.block.completedDates.contains(item.dateKey)
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 12) {
+                        Image(systemName: completed ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(AppTheme.primary)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(item.block.name).font(.subheadline.weight(.medium))
+                            Text("\(item.block.startTime) – \(item.block.endTime)")
+                                .font(.caption)
+                                .foregroundStyle(AppTheme.muted)
+                        }
+                        Spacer()
+                        if now >= item.end && !completed {
+                            Button("Complete") {
+                                store.toggleBlock(item.block.id, dateKey: item.dateKey)
+                            }
+                            .font(.caption.weight(.semibold))
+                            .buttonStyle(.bordered)
+                            .tint(AppTheme.primary)
+                            .controlSize(.small)
+                        }
+                    }
+
+                    if item.block.actions.isEmpty {
+                        Text("No actions")
                             .font(.caption)
                             .foregroundStyle(AppTheme.muted)
+                            .padding(.leading, 36)
+                    } else {
+                        VStack(spacing: 8) {
+                            ForEach(item.block.actions) { action in
+                                let actionCompleted = action.completedDates.contains(item.dateKey)
+                                Button {
+                                    store.toggleAction(action.id, in: item.block.id, dateKey: item.dateKey)
+                                } label: {
+                                    HStack(spacing: 9) {
+                                        Image(systemName: actionCompleted ? "checkmark.circle.fill" : "xmark.circle.fill")
+                                            .foregroundStyle(actionCompleted ? AppTheme.primary : Color.red)
+                                        Text(action.name)
+                                            .font(.caption)
+                                            .foregroundStyle(.white)
+                                        Spacer()
+                                        Text(actionCompleted ? "Done" : "Undone")
+                                            .font(.caption2.weight(.semibold))
+                                            .foregroundStyle(actionCompleted ? AppTheme.primary : Color.red)
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(now < item.start && !actionCompleted)
+                            }
+                        }
+                        .padding(.leading, 36)
                     }
-                    Spacer()
                 }
+                .padding(.vertical, 4)
             }
         }
         .padding(18)

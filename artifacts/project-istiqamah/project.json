@@ -68,7 +68,8 @@
       "platform": "iOS",
       "sources": [
         { "path": "Sources/Widgets" },
-        { "path": "Sources/Shared/BlockActivityAttributes.swift" }
+        { "path": "Sources/Shared/BlockActivityAttributes.swift" },
+        { "path": "Sources/Shared/BlockLiveActivityIntents.swift" }
       ],
       "info": {
         "path": "Config/WidgetInfo.plist",

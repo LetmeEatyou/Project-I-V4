@@ -42,6 +42,20 @@ actor LiveActivityManager {
                 ("\($0.block.id.uuidString):\($0.dateKey)", $0)
             }
         )
+
+        var needsStartRetry = false
+        if let active {
+            do {
+                guard try await startIfNeeded(
+                    active,
+                    pausedAt: pausedBlocks[active.id],
+                    generation: generation
+                ) else { return nil }
+            } catch {
+                needsStartRetry = true
+            }
+        }
+
         for activity in Activity<BlockActivityAttributes>.activities {
             guard generation == syncGeneration else { return nil }
             let key = "\(activity.attributes.blockID.uuidString):\(activity.attributes.dateKey)"
@@ -75,7 +89,7 @@ actor LiveActivityManager {
             }
         }
 
-        if let active {
+        if let active, needsStartRetry {
             do {
                 guard try await startIfNeeded(
                     active,
@@ -218,7 +232,7 @@ actor LiveActivityManager {
             do {
                 _ = try Activity.request(
                     attributes: attributes(for: item),
-                    content: activityContent(for: item, relevanceScore: 50),
+                    content: activityContent(for: item),
                     pushType: nil,
                     style: .standard,
                     alertConfiguration: alert,
@@ -237,8 +251,7 @@ actor LiveActivityManager {
 
     private func activityContent(
         for item: ScheduledBlock,
-        pausedAt: Date? = nil,
-        relevanceScore: Double = 100
+        pausedAt: Date? = nil
     ) -> ActivityContent<BlockActivityAttributes.ContentState> {
         ActivityContent(
             state: BlockActivityAttributes.ContentState(
@@ -249,7 +262,7 @@ actor LiveActivityManager {
                 pausedAt: pausedAt
             ),
             staleDate: item.end,
-            relevanceScore: relevanceScore
+            relevanceScore: item.start.timeIntervalSinceReferenceDate
         )
     }
 }

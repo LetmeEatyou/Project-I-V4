@@ -23,9 +23,25 @@ struct BlocksView: View {
                                     .font(.caption)
                                     .foregroundStyle(AppTheme.muted)
                             }
+                            Spacer()
+                            Image(systemName: "line.3.horizontal")
+                                .foregroundStyle(AppTheme.muted)
+                                .accessibilityHidden(true)
                         }
                         .padding(.vertical, 6)
                     }
+                    .draggable(block.id.uuidString)
+                    .dropDestination(for: String.self) { identifiers, location in
+                        guard let identifier = identifiers.first,
+                              let sourceID = UUID(uuidString: identifier) else { return false }
+                        store.moveBlock(
+                            sourceID,
+                            relativeTo: block.id,
+                            placeAfter: location.y > 30
+                        )
+                        return true
+                    }
+                    .accessibilityHint("Double-tap to edit. Touch and hold, then drag to reorder.")
                     .listRowBackground(AppTheme.card)
                     .swipeActions {
                         Button(role: .destructive) { store.remove(block) } label: {

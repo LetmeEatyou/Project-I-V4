@@ -14,7 +14,9 @@ struct RootTabView: View {
 
     var body: some View {
         TabView(selection: $selection) {
-            TodayView()
+            TodayView {
+                selection = .blocks
+            }
                 .tabItem { Label("Today", systemImage: "house") }
                 .tag(AppTab.today)
 
