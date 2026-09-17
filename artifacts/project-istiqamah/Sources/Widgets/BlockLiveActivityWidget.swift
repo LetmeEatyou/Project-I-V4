@@ -36,10 +36,10 @@ struct BlockLiveActivityWidget: Widget {
                     VStack(alignment: .leading, spacing: 6) {
                         VStack(alignment: .leading, spacing: 1) {
                             Text(statusLabel(context))
-                                .font(.system(size: 8, weight: .semibold))
+                                .font(.system(size: 10, weight: .semibold))
                                 .foregroundStyle(accent)
                             Text(blockTitle(context))
-                                .font(.system(size: 15, weight: .semibold))
+                                .font(.system(size: 14, weight: .semibold))
                                 .foregroundStyle(.white)
                                 .lineLimit(1)
                                 .truncationMode(.tail)
@@ -53,7 +53,7 @@ struct BlockLiveActivityWidget: Widget {
                             .scaleEffect(y: 0.5)
                             .frame(height: 2)
 
-                        HStack(alignment: .center, spacing: 6) {
+                        HStack(alignment: .center, spacing: 12) {
                             VStack(alignment: .leading, spacing: 0) {
                                 elapsed(context)
                                     .font(.system(size: 12, weight: .semibold, design: .monospaced))
@@ -87,8 +87,8 @@ struct BlockLiveActivityWidget: Widget {
             }
             .widgetURL(context.attributes.deepLink)
             .keylineTint(accent)
-            .contentMargins(.horizontal, 14, for: .expanded)
-            .contentMargins(.bottom, 8, for: .expanded)
+            .contentMargins(.horizontal, 24, for: .expanded)
+            .contentMargins(.bottom, 24, for: .expanded)
         }
     }
 
@@ -99,7 +99,7 @@ struct BlockLiveActivityWidget: Widget {
                     .frame(width: 22, height: 22)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(statusLabel(context))
-                        .font(.system(size: 8, weight: .semibold))
+                        .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(accent)
                     Text(blockTitle(context))
                         .font(.system(size: 16, weight: .semibold))
@@ -127,7 +127,7 @@ struct BlockLiveActivityWidget: Widget {
                 .scaleEffect(y: 0.55)
                 .frame(height: 2)
 
-            HStack(alignment: .center, spacing: 6) {
+            HStack(alignment: .center, spacing: 12) {
                 VStack(alignment: .leading, spacing: 1) {
                     HStack(spacing: 4) {
                         elapsed(context)
@@ -149,7 +149,7 @@ struct BlockLiveActivityWidget: Widget {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.vertical, 14)
     }
 
     @ViewBuilder
@@ -164,10 +164,10 @@ struct BlockLiveActivityWidget: Widget {
                     context.state.isPaused ? "Resume" : "Pause",
                     systemImage: context.state.isPaused ? "play.fill" : "pause.fill"
                 )
-                .font(.system(size: 10, weight: .semibold))
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.white)
-                .padding(.horizontal, 9)
-                .frame(height: 28)
+                .padding(.horizontal, 12)
+                .frame(height: 44)
                 .background(accent)
                 .clipShape(Capsule())
             }
@@ -178,10 +178,10 @@ struct BlockLiveActivityWidget: Widget {
                 dateKey: context.attributes.dateKey
             )) {
                 Label("End", systemImage: "stop.fill")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.9))
-                    .padding(.horizontal, 9)
-                    .frame(height: 28)
+                    .padding(.horizontal, 12)
+                    .frame(height: 44)
                     .background(.white.opacity(0.12))
                     .clipShape(Capsule())
                     .overlay {
@@ -204,10 +204,10 @@ struct BlockLiveActivityWidget: Widget {
                     context.state.isPaused ? "Resume" : "Pause",
                     systemImage: context.state.isPaused ? "play.fill" : "pause.fill"
                 )
-                .font(.system(size: 10, weight: .semibold))
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.white)
-                .padding(.horizontal, 8)
-                .frame(height: 26)
+                .padding(.horizontal, 12)
+                .frame(height: 44)
                 .background(accent)
                 .clipShape(Capsule())
             }
@@ -218,10 +218,10 @@ struct BlockLiveActivityWidget: Widget {
                 dateKey: context.attributes.dateKey
             )) {
                 Label("End", systemImage: "stop.fill")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.9))
-                    .padding(.horizontal, 8)
-                    .frame(height: 26)
+                    .padding(.horizontal, 12)
+                    .frame(height: 44)
                     .background(.white.opacity(0.12))
                     .clipShape(Capsule())
                     .overlay {
