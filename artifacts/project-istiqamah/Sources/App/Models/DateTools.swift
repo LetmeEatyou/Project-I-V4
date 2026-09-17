@@ -42,6 +42,21 @@ enum DateTools {
         minutes(time) != nil && time.count == 5
     }
 
+    static func date(for time: String, on day: Date = Date()) -> Date? {
+        guard let value = minutes(time) else { return nil }
+        let calendar = Calendar.current
+        return calendar.date(
+            byAdding: .minute,
+            value: value,
+            to: calendar.startOfDay(for: day)
+        )
+    }
+
+    static func timeString(from date: Date) -> String {
+        let components = Calendar.current.dateComponents([.hour, .minute], from: date)
+        return String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0)
+    }
+
     static func overlaps(_ first: FocusBlock, _ second: FocusBlock) -> Bool {
         guard first.archivedAt == nil, second.archivedAt == nil else { return false }
         guard let firstStart = minutes(first.startTime),

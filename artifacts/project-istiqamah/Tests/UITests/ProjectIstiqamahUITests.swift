@@ -15,6 +15,11 @@ final class ProjectIstiqamahUITests: XCTestCase {
         XCTAssertTrue(app.tabBars.buttons["Settings"].exists)
 
         app.tabBars.buttons["Blocks"].tap()
+        app.navigationBars.buttons["Add block"].tap()
+        XCTAssertTrue(app.datePickers["Start"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.datePickers["End"].exists)
+        app.navigationBars.buttons["Cancel"].tap()
+
         let reorder = app.navigationBars.buttons["Reorder"]
         XCTAssertTrue(reorder.waitForExistence(timeout: 2))
         reorder.tap()

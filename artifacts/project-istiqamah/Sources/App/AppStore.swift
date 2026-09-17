@@ -168,6 +168,7 @@ final class AppStore: ObservableObject {
     func updatePreferences(_ update: (inout AppPreferences) -> Void) {
         update(&preferences)
         preferences.reminderMinutes = min(15, max(5, preferences.reminderMinutes))
+        preferences.snoozeMinutes = AppPreferences.normalizedSnoozeMinutes(preferences.snoozeMinutes)
         changed()
     }
 

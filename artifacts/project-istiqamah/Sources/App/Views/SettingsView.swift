@@ -25,6 +25,11 @@ struct SettingsView: View {
                         in: 5...15,
                         step: 5
                     )
+                    Picker("Snooze block alert", selection: snoozeBinding) {
+                        ForEach(AppPreferences.snoozeOptions, id: \.self) { minutes in
+                            Text("\(minutes) min").tag(minutes)
+                        }
+                    }
                     Picker("Reminder sound", selection: reminderSoundBinding) {
                         ForEach(ReminderSound.allCases) { sound in
                             Text(sound.title).tag(sound)
@@ -170,6 +175,13 @@ struct SettingsView: View {
         Binding(
             get: { store.preferences.reminderSound },
             set: { value in store.updatePreferences { $0.reminderSound = value } }
+        )
+    }
+
+    private var snoozeBinding: Binding<Int> {
+        Binding(
+            get: { store.preferences.snoozeMinutes },
+            set: { value in store.updatePreferences { $0.snoozeMinutes = value } }
         )
     }
 

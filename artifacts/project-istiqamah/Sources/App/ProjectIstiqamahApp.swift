@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         UNUserNotificationCenter.current().delegate = self
+        NotificationManager.registerCategories()
         BackgroundRefreshManager.shared.register()
         return true
     }
@@ -30,6 +31,35 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         let blockID = (data["blockID"] as? String).flatMap(UUID.init(uuidString:))
         let dateKey = data["date"] as? String
         let action = data["action"] as? String
+        let responseAction = response.actionIdentifier
+        if responseAction == NotificationManager.acknowledgeActionIdentifier {
+            completionHandler()
+            return
+        }
+        let dismissedStartAlert = responseAction == UNNotificationDismissActionIdentifier &&
+            response.notification.request.content.categoryIdentifier ==
+            NotificationManager.blockStartCategoryIdentifier
+        if responseAction == NotificationManager.snoozeActionIdentifier || dismissedStartAlert {
+            let blockName = data["blockName"] as? String ?? "Your block"
+            let blockEnd = (data["blockEnd"] as? NSNumber).map {
+                Date(timeIntervalSince1970: $0.doubleValue)
+            }
+            let minutes = (data["snoozeMinutes"] as? NSNumber)?.intValue ?? 5
+            let sound = (data["reminderSound"] as? String)
+                .flatMap(ReminderSound.init(rawValue:)) ?? .system
+            Task {
+                await NotificationManager.shared.snoozeBlockStart(
+                    blockID: blockID,
+                    blockName: blockName,
+                    blockEnd: blockEnd,
+                    dateKey: dateKey,
+                    minutes: minutes,
+                    sound: sound
+                )
+                completionHandler()
+            }
+            return
+        }
         Task { @MainActor in
             DeepLinkRouter.shared.open(blockID: blockID, dateKey: dateKey, action: action)
             completionHandler()

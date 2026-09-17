@@ -3,18 +3,39 @@ import UserNotifications
 
 actor NotificationManager {
     static let shared = NotificationManager()
+    static let blockStartCategoryIdentifier = "ISTIQAMAH_BLOCK_START"
+    static let acknowledgeActionIdentifier = "ISTIQAMAH_I_KNOW"
+    static let snoozeActionIdentifier = "ISTIQAMAH_SNOOZE"
 
     private let center = UNUserNotificationCenter.current()
     private let prefix = "istiqamah.block."
+    private let snoozePrefix = "istiqamah.snooze."
     private var syncGeneration = 0
+
+    static func registerCategories() {
+        let acknowledge = UNNotificationAction(
+            identifier: acknowledgeActionIdentifier,
+            title: "I Know",
+            options: []
+        )
+        let snooze = UNNotificationAction(
+            identifier: snoozeActionIdentifier,
+            title: "Snooze",
+            options: []
+        )
+        let blockStart = UNNotificationCategory(
+            identifier: blockStartCategoryIdentifier,
+            actions: [acknowledge, snooze],
+            intentIdentifiers: [],
+            options: [.customDismissAction]
+        )
+        UNUserNotificationCenter.current().setNotificationCategories([blockStart])
+    }
 
     func requestPermission() async throws -> Bool {
         let settings = await center.notificationSettings()
-        if settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional {
-            return true
-        }
-        guard settings.authorizationStatus == .notDetermined else { return false }
-        return try await center.requestAuthorization(options: [.alert, .sound, .badge])
+        guard settings.authorizationStatus != .denied else { return false }
+        return try await center.requestAuthorization(options: [.alert, .sound, .badge, .timeSensitive])
     }
 
     func sendTest(preferences: AppPreferences) async -> String {
@@ -46,13 +67,29 @@ actor NotificationManager {
     }
 
     func sync(blocks: [FocusBlock], preferences: AppPreferences, now: Date = Date()) async -> String {
+        Self.registerCategories()
         syncGeneration &+= 1
         let generation = syncGeneration
         let generationID = UUID().uuidString
         let pending = await center.pendingNotificationRequests()
         guard generation == syncGeneration else { return "Superseded by a newer sync" }
-        let owned = pending.map(\.identifier).filter { $0.hasPrefix(prefix) }
-        center.removePendingNotificationRequests(withIdentifiers: owned)
+        let owned = pending.filter { request in
+            if request.identifier.hasPrefix(prefix) {
+                return true
+            }
+            guard request.identifier.hasPrefix(snoozePrefix) else { return false }
+            guard preferences.reminders else { return true }
+            let data = request.content.userInfo
+            guard let rawBlockID = data["blockID"] as? String,
+                  let blockID = UUID(uuidString: rawBlockID),
+                  let block = blocks.first(where: { $0.id == blockID }),
+                  block.archivedAt == nil else {
+                return true
+            }
+            guard let dateKey = data["date"] as? String else { return false }
+            return block.completedDates.contains(dateKey)
+        }
+        center.removePendingNotificationRequests(withIdentifiers: owned.map(\.identifier))
 
         guard preferences.reminders else { return "Reminders are off" }
         do {
@@ -63,14 +100,6 @@ actor NotificationManager {
             return "Notification permission failed: \(error.localizedDescription)"
         }
         guard generation == syncGeneration else { return "Superseded by a newer sync" }
-
-        let category = UNNotificationCategory(
-            identifier: "ISTIQAMAH_BLOCK",
-            actions: [],
-            intentIdentifiers: [],
-            options: []
-        )
-        center.setNotificationCategories([category])
 
         let schedule = DateTools.schedule(for: blocks, around: now)
         var count = 0
@@ -89,7 +118,7 @@ actor NotificationManager {
                     "start",
                     item.start,
                     "\(item.block.name) is starting now",
-                    "Focus until \(item.block.endTime)."
+                    "Focus until \(item.block.endTime). Choose I Know or snooze this alert."
                 ),
                 (
                     "complete",
@@ -105,13 +134,21 @@ actor NotificationManager {
                 let content = UNMutableNotificationContent()
                 content.title = alert.title
                 content.body = alert.body
-                content.sound = notificationSound(for: preferences.reminderSound)
+                content.sound = alert.kind == "start"
+                    ? blockStartSound(for: preferences.reminderSound)
+                    : notificationSound(for: preferences.reminderSound)
                 content.interruptionLevel = .timeSensitive
-                content.categoryIdentifier = "ISTIQAMAH_BLOCK"
+                if alert.kind == "start" {
+                    content.categoryIdentifier = Self.blockStartCategoryIdentifier
+                }
                 content.userInfo = [
                     "blockID": item.block.id.uuidString,
+                    "blockName": item.block.name,
+                    "blockEnd": item.end.timeIntervalSince1970,
                     "date": item.dateKey,
-                    "action": alert.kind == "complete" ? "complete" : "open"
+                    "action": alert.kind == "complete" ? "complete" : "open",
+                    "snoozeMinutes": preferences.snoozeMinutes,
+                    "reminderSound": preferences.reminderSound.rawValue
                 ]
                 let components = Calendar.current.dateComponents(
                     [.year, .month, .day, .hour, .minute, .second],
@@ -141,8 +178,69 @@ actor NotificationManager {
         return "Scheduled \(count) reminders"
     }
 
+    @discardableResult
+    func snoozeBlockStart(
+        blockID: UUID?,
+        blockName: String,
+        blockEnd: Date?,
+        dateKey: String?,
+        minutes: Int,
+        sound: ReminderSound
+    ) async -> Bool {
+        let delay = AppPreferences.normalizedSnoozeMinutes(minutes)
+        let fireDate = Date().addingTimeInterval(TimeInterval(delay * 60))
+        if let blockEnd, fireDate >= blockEnd {
+            return false
+        }
+
+        let content = UNMutableNotificationContent()
+        content.title = "\(blockName) is starting now"
+        content.body = "Snoozed for \(delay) minutes. Tap I Know when you're ready to focus."
+        content.sound = blockStartSound(for: sound)
+        content.interruptionLevel = .timeSensitive
+        content.categoryIdentifier = Self.blockStartCategoryIdentifier
+        var userInfo: [String: Any] = [
+            "blockName": blockName,
+            "action": "open",
+            "snoozeMinutes": delay,
+            "reminderSound": sound.rawValue
+        ]
+        if let blockID {
+            userInfo["blockID"] = blockID.uuidString
+        }
+        if let blockEnd {
+            userInfo["blockEnd"] = blockEnd.timeIntervalSince1970
+        }
+        if let dateKey {
+            userInfo["date"] = dateKey
+        }
+        content.userInfo = userInfo
+
+        let request = UNNotificationRequest(
+            identifier: "\(snoozePrefix)\(UUID().uuidString)",
+            content: content,
+            trigger: UNTimeIntervalNotificationTrigger(
+                timeInterval: TimeInterval(delay * 60),
+                repeats: false
+            )
+        )
+        do {
+            try await center.add(request)
+            return true
+        } catch {
+            return false
+        }
+    }
+
     private func notificationSound(for selection: ReminderSound) -> UNNotificationSound {
         guard let fileName = selection.fileName else { return .default }
         return UNNotificationSound(named: UNNotificationSoundName(rawValue: fileName))
+    }
+
+    private func blockStartSound(for selection: ReminderSound) -> UNNotificationSound {
+        if #available(iOS 26.0, *), selection == .system {
+            return .defaultRingtone
+        }
+        return notificationSound(for: selection)
     }
 }

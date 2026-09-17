@@ -2,6 +2,27 @@ import XCTest
 @testable import ProjectIstiqamah
 
 final class DateToolsTests: XCTestCase {
+    func testTimePickerValuesRoundTripAsCanonicalTimes() throws {
+        let day = try XCTUnwrap(DateTools.date(from: "2026-09-17"))
+        let selectedTime = try XCTUnwrap(DateTools.date(for: "23:45", on: day))
+
+        XCTAssertEqual(DateTools.timeString(from: selectedTime), "23:45")
+    }
+
+    func testLegacyPreferencesReceiveDefaultSnoozeDelay() throws {
+        let json = Data(#"{"haptics":true,"reminders":true,"reminderMinutes":10,"reminderSound":"system"}"#.utf8)
+
+        let preferences = try JSONDecoder().decode(AppPreferences.self, from: json)
+
+        XCTAssertEqual(preferences.snoozeMinutes, 5)
+    }
+
+    func testSnoozeDelayIsClampedToSupportedRange() {
+        XCTAssertEqual(AppPreferences(snoozeMinutes: 1).snoozeMinutes, 5)
+        XCTAssertEqual(AppPreferences(snoozeMinutes: 8).snoozeMinutes, 10)
+        XCTAssertEqual(AppPreferences(snoozeMinutes: 30).snoozeMinutes, 15)
+    }
+
     func testLegacyBlockDecodesWithEveryDaySchedule() throws {
         let json = Data(#"{"id":"00000000-0000-0000-0000-000000000001","name":"Legacy","startTime":"09:00","endTime":"10:00","note":"","actions":[],"completedDates":[]}"#.utf8)
         let block = try JSONDecoder().decode(FocusBlock.self, from: json)

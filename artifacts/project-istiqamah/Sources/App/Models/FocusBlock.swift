@@ -95,15 +95,19 @@ enum ReminderSound: String, CaseIterable, Codable, Identifiable, Sendable {
 }
 
 struct AppPreferences: Codable, Equatable {
+    static let snoozeOptions = [5, 10, 15]
+
     var haptics = true
     var reminders = true
     var reminderMinutes = 5
+    var snoozeMinutes = 5
     var reminderSound: ReminderSound = .system
 
     private enum CodingKeys: String, CodingKey {
         case haptics
         case reminders
         case reminderMinutes
+        case snoozeMinutes
         case reminderSound
     }
 
@@ -111,11 +115,13 @@ struct AppPreferences: Codable, Equatable {
         haptics: Bool = true,
         reminders: Bool = true,
         reminderMinutes: Int = 5,
+        snoozeMinutes: Int = 5,
         reminderSound: ReminderSound = .system
     ) {
         self.haptics = haptics
         self.reminders = reminders
         self.reminderMinutes = min(15, max(5, reminderMinutes))
+        self.snoozeMinutes = Self.normalizedSnoozeMinutes(snoozeMinutes)
         self.reminderSound = reminderSound
     }
 
@@ -127,7 +133,17 @@ struct AppPreferences: Codable, Equatable {
             15,
             max(5, try values.decodeIfPresent(Int.self, forKey: .reminderMinutes) ?? 5)
         )
+        snoozeMinutes = Self.normalizedSnoozeMinutes(
+            try values.decodeIfPresent(Int.self, forKey: .snoozeMinutes) ?? 5
+        )
         reminderSound = try values.decodeIfPresent(ReminderSound.self, forKey: .reminderSound) ?? .system
+    }
+
+    static func normalizedSnoozeMinutes(_ minutes: Int) -> Int {
+        let bounded = min(15, max(5, minutes))
+        snoozeOptions.min { first, second in
+            abs(first - bounded) < abs(second - bounded)
+        } ?? 5
     }
 }
 

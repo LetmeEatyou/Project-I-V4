@@ -98,6 +98,7 @@ struct BlocksView: View {
                     Button { draft = FocusBlock(name: "", startTime: "09:00", endTime: "10:00", note: "") } label: {
                         Image(systemName: "plus")
                     }
+                    .accessibilityLabel("Add block")
                 }
             }
             .sheet(item: $draft) { block in
@@ -159,11 +160,19 @@ private struct BlockEditor: View {
             Form {
                 Section("Block") {
                     TextField("Block name", text: $block.name)
-                    TextField("Start time (HH:MM)", text: $block.startTime)
-                        .keyboardType(.numbersAndPunctuation)
-                    TextField("End time (HH:MM)", text: $block.endTime)
-                        .keyboardType(.numbersAndPunctuation)
+                    DatePicker(
+                        "Start",
+                        selection: timeBinding(\.startTime),
+                        displayedComponents: .hourAndMinute
+                    )
+                    DatePicker(
+                        "End",
+                        selection: timeBinding(\.endTime),
+                        displayedComponents: .hourAndMinute
+                    )
                     TextField("Note", text: $block.note, axis: .vertical)
+                } footer: {
+                    Text("Times use your iPhone's preferred 12-hour or 24-hour format.")
                 }
 
                 Section("Scheduled days") {
@@ -201,6 +210,13 @@ private struct BlockEditor: View {
         }
     }
 
+    private func timeBinding(_ keyPath: WritableKeyPath<FocusBlock, String>) -> Binding<Date> {
+        Binding(
+            get: { DateTools.date(for: block[keyPath: keyPath]) ?? Date() },
+            set: { block[keyPath: keyPath] = DateTools.timeString(from: $0) }
+        )
+    }
+
     private func save() {
         block.name = block.name.trimmingCharacters(in: .whitespacesAndNewlines)
         block.startTime = block.startTime.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -218,7 +234,7 @@ private struct BlockEditor: View {
               DateTools.isValid(time: block.startTime),
               DateTools.isValid(time: block.endTime),
               !block.weekdays.isEmpty else {
-            errorMessage = "Add a name, valid 24-hour times such as 05:00, and at least one day."
+            errorMessage = "Add a name, choose start and end times, and select at least one day."
             return
         }
         if let overlappingBlock = existingBlocks.first(where: {
