@@ -22,7 +22,7 @@ The native application lives in [`artifacts/project-istiqamah`](artifacts/projec
 | Area | Implemented behavior |
 | --- | --- |
 | App navigation | Native SwiftUI tabs for Today, Blocks, Progress, and Settings |
-| Block planning | Create, edit, delete, and long-press drag blocks to swap their time slots; overlapping schedules are rejected, while names, actions, and completion history stay with each block |
+| Block planning | Create, edit, delete, and use the native Reorder mode to swap block time slots; overlapping schedules are rejected, while names, actions, and completion history stay with each block |
 | Daily view | Previous/next-day navigation, return to today, a running block with live actions or the next upcoming block, and a Start a block shortcut when nothing remains scheduled |
 | Completion | Mark blocks and individual actions complete after their start time; Today's System shows date-specific Done/Undone action status |
 | Progress | Seven-day chart, completed-block total, practiced-day count, consistency percentage, current streak, and per-block completion totals |

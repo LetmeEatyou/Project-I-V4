@@ -16,14 +16,22 @@ struct BlockLiveActivityWidget: Widget {
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    activityIcon(context, size: 16)
-                        .frame(width: 20, height: 20)
+                    HStack(spacing: 6) {
+                        activityIcon(context, size: 17)
+                            .frame(width: 20, height: 20)
+                        Text(statusLabel(context))
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(accent)
+                            .lineLimit(1)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
                 DynamicIslandExpandedRegion(.trailing) {
-                    VStack(alignment: .trailing, spacing: 0) {
+                    VStack(alignment: .trailing, spacing: 1) {
                         countdown(context)
-                            .font(.system(size: 20, weight: .semibold, design: .monospaced))
+                            .font(.system(size: 24, weight: .semibold, design: .monospaced))
+                            .minimumScaleFactor(0.72)
                         Text(context.isStale ? "COMPLETE" : "REMAINING")
                             .font(.system(size: 8, weight: .medium))
                             .foregroundStyle(.secondary)
@@ -31,55 +39,52 @@ struct BlockLiveActivityWidget: Widget {
                 }
 
                 DynamicIslandExpandedRegion(.bottom) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(statusLabel(context))
-                                .font(.system(size: 8, weight: .semibold))
-                                .foregroundStyle(accent)
-                            Text(blockTitle(context))
-                                .font(.system(size: 15, weight: .semibold, design: .default))
-                                .lineLimit(1)
-                                .truncationMode(.tail)
-                        }
+                    VStack(alignment: .leading, spacing: 7) {
+                        Text(blockTitle(context))
+                            .font(.system(size: 17, weight: .semibold, design: .default))
+                            .lineLimit(1)
+                            .truncationMode(.tail)
 
                         progress(context)
                             .tint(accent)
-                            .scaleEffect(y: 0.65)
+                            .scaleEffect(y: 0.55)
+                            .frame(height: 3)
 
-                        HStack(spacing: 6) {
-                            Text(context.isStale ? "Completed" : context.state.timeLabel)
-                                .font(.system(size: 10, weight: .medium, design: .default))
-                                .foregroundStyle(.secondary)
-                            Spacer(minLength: 6)
+                        HStack(alignment: .center, spacing: 8) {
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(context.isStale ? "DURATION" : "ELAPSED")
+                                    .font(.system(size: 7, weight: .medium))
+                                    .foregroundStyle(.secondary)
+                                elapsed(context)
+                                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                                    .foregroundStyle(.white.opacity(0.9))
+                            }
+                            Spacer(minLength: 8)
                             dynamicIslandActions(context)
                         }
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.top, 0)
-                    .padding(.bottom, 5)
+                    .padding(.top, 3)
                 }
             } compactLeading: {
-                HStack(spacing: 5) {
-                    activityIcon(context, size: 12)
-                        .frame(width: 14, height: 14)
+                HStack(spacing: 4) {
+                    activityIcon(context, size: 11)
+                        .frame(width: 13, height: 13)
                     Text(compactTitle(context))
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .font(.system(size: 11, weight: .semibold, design: .default))
                         .lineLimit(1)
                         .truncationMode(.tail)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-                .padding(.leading, 4)
                 .accessibilityLabel("\(blockTitle(context)), \(statusLabel(context))")
             } compactTrailing: {
                 compactTimer(context)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
-                    .padding(.trailing, 4)
             } minimal: {
                 activityIcon(context, size: 13)
                     .frame(width: 18, height: 18)
             }
             .widgetURL(context.attributes.deepLink)
             .keylineTint(accent)
+            .contentMargins(.horizontal, 12, for: .expanded)
+            .contentMargins(.bottom, 8, for: .expanded)
         }
     }
 
@@ -162,11 +167,13 @@ struct BlockLiveActivityWidget: Widget {
                     systemImage: context.state.isPaused ? "play.fill" : "pause.fill"
                 )
                 .font(.system(size: 10, weight: .semibold))
-                .frame(minWidth: 50)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 10)
+                .frame(height: 28)
+                .background(accent)
+                .clipShape(Capsule())
             }
-            .buttonStyle(.borderedProminent)
-            .tint(accent)
-            .controlSize(.mini)
+            .buttonStyle(.plain)
 
             Button(intent: EndBlockIntent(
                 blockID: context.attributes.blockID,
@@ -174,21 +181,40 @@ struct BlockLiveActivityWidget: Widget {
             )) {
                 Label("End", systemImage: "stop.fill")
                     .font(.system(size: 10, weight: .semibold))
-                    .frame(minWidth: 44)
+                    .foregroundStyle(.white.opacity(0.9))
+                    .padding(.horizontal, 10)
+                    .frame(height: 28)
+                    .background(.white.opacity(0.12))
+                    .clipShape(Capsule())
+                    .overlay {
+                        Capsule().stroke(.white.opacity(0.16))
+                    }
             }
-            .buttonStyle(.bordered)
-            .tint(.white.opacity(0.82))
-            .controlSize(.mini)
+            .buttonStyle(.plain)
         }
     }
 
     private func compactTimer(_ context: ActivityViewContext<BlockActivityAttributes>) -> some View {
         countdown(context)
-            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+            .font(.system(size: 12, weight: .semibold, design: .monospaced))
             .minimumScaleFactor(0.72)
             .lineLimit(1)
             .foregroundStyle(accent)
             .accessibilityLabel("Time remaining")
+    }
+
+    @ViewBuilder
+    private func elapsed(_ context: ActivityViewContext<BlockActivityAttributes>) -> some View {
+        if context.isStale {
+            Text(formattedDuration(context.state.endDate.timeIntervalSince(context.state.startDate)))
+                .monospacedDigit()
+        } else if let pausedAt = context.state.pausedAt {
+            Text(formattedDuration(pausedAt.timeIntervalSince(context.state.startDate)))
+                .monospacedDigit()
+        } else {
+            Text(context.state.startDate, style: .timer)
+                .monospacedDigit()
+        }
     }
 
     @ViewBuilder

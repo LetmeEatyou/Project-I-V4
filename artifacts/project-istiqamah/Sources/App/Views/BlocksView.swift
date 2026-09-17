@@ -1,11 +1,9 @@
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct BlocksView: View {
     @EnvironmentObject private var store: AppStore
     @State private var draft: FocusBlock?
-    @State private var draggedBlockID: UUID?
-    @State private var dropTargetID: UUID?
+    @State private var editMode: EditMode = .inactive
 
     var body: some View {
         NavigationStack {
@@ -27,50 +25,37 @@ struct BlocksView: View {
                                     .foregroundStyle(AppTheme.muted)
                             }
                             Spacer()
-                            Image(systemName: "line.3.horizontal")
-                                .foregroundStyle(AppTheme.muted)
-                                .accessibilityHidden(true)
                         }
                         .padding(.vertical, 6)
                         .contentShape(Rectangle())
                         .onTapGesture { draft = block }
-                        .onDrag {
-                            draggedBlockID = block.id
-                            dropTargetID = nil
-                            return NSItemProvider(object: block.id.uuidString as NSString)
-                        }
-                        .onDrop(
-                            of: [UTType.text],
-                            delegate: BlockSlotDropDelegate(
-                                targetBlockID: block.id,
-                                draggedBlockID: $draggedBlockID,
-                                dropTargetID: $dropTargetID,
-                                onSwap: store.swapBlockTimeSlots
-                            )
-                        )
                         .accessibilityAddTraits(.isButton)
                         .accessibilityAction { draft = block }
-                        .accessibilityHint("Double-tap to edit. Touch and hold, then drag onto another block to swap time slots.")
-                        .listRowBackground(
-                            dropTargetID == block.id
-                                ? AppTheme.primary.opacity(0.14)
-                                : AppTheme.card
-                        )
-                        .animation(.easeOut(duration: 0.14), value: dropTargetID)
+                        .accessibilityHint("Double-tap to edit. Use Reorder to move this block into another time slot.")
+                        .listRowBackground(AppTheme.card)
                         .swipeActions {
                             Button(role: .destructive) { store.remove(block) } label: {
                                 Label("Delete", systemImage: "trash")
                             }
                         }
                     }
+                    .onMove(perform: moveBlocks)
                 } footer: {
-                    Text("Touch and hold a block, then drop it on another block to swap their time slots.")
+                    Text("Tap Reorder, then drag a block by its handle. The moved block and destination block exchange time slots.")
                 }
             }
+            .environment(\.editMode, $editMode)
             .scrollContentBackground(.hidden)
             .background(AppTheme.background)
             .navigationTitle("Blocks")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(editMode.isEditing ? "Done" : "Reorder") {
+                        withAnimation(.snappy) {
+                            editMode = editMode.isEditing ? .inactive : .active
+                        }
+                    }
+                }
                 ToolbarItem(placement: .primaryAction) {
                     Button { draft = FocusBlock(name: "", startTime: "09:00", endTime: "10:00", note: "") } label: {
                         Image(systemName: "plus")
@@ -89,45 +74,14 @@ struct BlocksView: View {
             }
         }
     }
-}
 
-private struct BlockSlotDropDelegate: DropDelegate {
-    let targetBlockID: UUID
-    @Binding var draggedBlockID: UUID?
-    @Binding var dropTargetID: UUID?
-    let onSwap: (UUID, UUID) -> Void
-
-    func validateDrop(info: DropInfo) -> Bool {
-        guard let draggedBlockID else { return false }
-        return draggedBlockID != targetBlockID && info.hasItemsConforming(to: [UTType.text])
-    }
-
-    func dropEntered(info: DropInfo) {
-        guard draggedBlockID != nil, draggedBlockID != targetBlockID else { return }
-        dropTargetID = targetBlockID
-    }
-
-    func dropExited(info: DropInfo) {
-        if dropTargetID == targetBlockID {
-            dropTargetID = nil
-        }
-    }
-
-    func dropUpdated(info: DropInfo) -> DropProposal? {
-        DropProposal(operation: .move)
-    }
-
-    func performDrop(info: DropInfo) -> Bool {
-        defer {
-            draggedBlockID = nil
-            dropTargetID = nil
-        }
-        guard let sourceBlockID = draggedBlockID,
-              sourceBlockID != targetBlockID else { return false }
-        withAnimation(.snappy) {
-            onSwap(sourceBlockID, targetBlockID)
-        }
-        return true
+    private func moveBlocks(from sourceOffsets: IndexSet, to destination: Int) {
+        guard sourceOffsets.count == 1,
+              let sourceIndex = sourceOffsets.first,
+              store.blocks.indices.contains(sourceIndex) else { return }
+        let targetIndex = destination > sourceIndex ? destination - 1 : destination
+        guard store.blocks.indices.contains(targetIndex), targetIndex != sourceIndex else { return }
+        store.swapBlockTimeSlots(store.blocks[sourceIndex].id, with: store.blocks[targetIndex].id)
     }
 }
 
