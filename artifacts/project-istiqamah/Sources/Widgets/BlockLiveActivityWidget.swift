@@ -16,13 +16,19 @@ struct BlockLiveActivityWidget: Widget {
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    HStack(spacing: 6) {
-                        activityIcon(context, size: 17)
+                    HStack(spacing: 7) {
+                        activityIcon(context, size: 16)
                             .frame(width: 20, height: 20)
-                        Text(statusLabel(context))
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundStyle(accent)
-                            .lineLimit(1)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(statusLabel(context))
+                                .font(.system(size: 8, weight: .semibold))
+                                .foregroundStyle(accent)
+                            Text(blockTitle(context))
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -30,40 +36,39 @@ struct BlockLiveActivityWidget: Widget {
                 DynamicIslandExpandedRegion(.trailing) {
                     VStack(alignment: .trailing, spacing: 1) {
                         countdown(context)
-                            .font(.system(size: 24, weight: .semibold, design: .monospaced))
+                            .font(.system(size: 22, weight: .semibold, design: .monospaced))
                             .minimumScaleFactor(0.72)
+                            .fixedSize(horizontal: true, vertical: false)
                         Text(context.isStale ? "COMPLETE" : "REMAINING")
-                            .font(.system(size: 8, weight: .medium))
+                            .font(.system(size: 7, weight: .medium))
                             .foregroundStyle(.secondary)
                     }
                 }
 
                 DynamicIslandExpandedRegion(.bottom) {
-                    VStack(alignment: .leading, spacing: 7) {
-                        Text(blockTitle(context))
-                            .font(.system(size: 17, weight: .semibold, design: .default))
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-
+                    VStack(alignment: .leading, spacing: 6) {
                         progress(context)
+                            .labelsHidden()
+                            .progressViewStyle(.linear)
                             .tint(accent)
-                            .scaleEffect(y: 0.55)
-                            .frame(height: 3)
+                            .scaleEffect(y: 0.5)
+                            .frame(height: 2)
 
-                        HStack(alignment: .center, spacing: 8) {
-                            VStack(alignment: .leading, spacing: 1) {
+                        HStack(alignment: .center, spacing: 6) {
+                            HStack(spacing: 4) {
+                                elapsed(context)
+                                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                                    .foregroundStyle(.white.opacity(0.9))
                                 Text(context.isStale ? "DURATION" : "ELAPSED")
                                     .font(.system(size: 7, weight: .medium))
                                     .foregroundStyle(.secondary)
-                                elapsed(context)
-                                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                                    .foregroundStyle(.white.opacity(0.9))
                             }
-                            Spacer(minLength: 8)
+                            .lineLimit(1)
+                            Spacer(minLength: 6)
                             dynamicIslandActions(context)
                         }
                     }
-                    .padding(.top, 3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             } compactLeading: {
                 HStack(spacing: 4) {
@@ -83,41 +88,67 @@ struct BlockLiveActivityWidget: Widget {
             }
             .widgetURL(context.attributes.deepLink)
             .keylineTint(accent)
-            .contentMargins(.horizontal, 12, for: .expanded)
-            .contentMargins(.bottom, 8, for: .expanded)
+            .contentMargins(.horizontal, 16, for: .expanded)
+            .contentMargins(.bottom, 10, for: .expanded)
         }
     }
 
     private func lockScreen(_ context: ActivityViewContext<BlockActivityAttributes>) -> some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 10) {
-                activityIcon(context, size: 20)
-                    .frame(width: 28, height: 28)
+        VStack(spacing: 8) {
+            HStack(alignment: .center, spacing: 9) {
+                activityIcon(context, size: 18)
+                    .frame(width: 26, height: 26)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(statusLabel(context))
-                        .font(.caption2.weight(.semibold))
+                        .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(accent)
                     Text(blockTitle(context))
-                        .font(.headline)
+                        .font(.system(size: 15, weight: .semibold))
                         .lineLimit(1)
+                        .truncationMode(.tail)
                 }
                 Spacer(minLength: 10)
-                countdown(context)
-                    .font(.system(size: 20, weight: .semibold, design: .monospaced))
-                    .frame(minWidth: 64, alignment: .trailing)
+                VStack(alignment: .trailing, spacing: 1) {
+                    countdown(context)
+                        .font(.system(size: 20, weight: .semibold, design: .monospaced))
+                        .minimumScaleFactor(0.75)
+                        .fixedSize(horizontal: true, vertical: false)
+                    Text(context.isStale ? "COMPLETE" : "REMAINING")
+                        .font(.system(size: 7, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+                .layoutPriority(1)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             progress(context)
+                .labelsHidden()
+                .progressViewStyle(.linear)
                 .tint(accent)
+                .scaleEffect(y: 0.55)
+                .frame(height: 2)
 
-            HStack(spacing: 8) {
-                Text(lockScreenTimeLabel(context))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
+            HStack(alignment: .center, spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 4) {
+                        elapsed(context)
+                            .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.9))
+                        Text(context.isStale ? "duration" : "elapsed")
+                            .font(.system(size: 8, weight: .medium))
+                            .foregroundStyle(.secondary)
+                    }
+                    Text(lockScreenTimeLabel(context))
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 8)
                 activityActions(context)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
     }
 
@@ -168,8 +199,8 @@ struct BlockLiveActivityWidget: Widget {
                 )
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(.white)
-                .padding(.horizontal, 10)
-                .frame(height: 28)
+                .padding(.horizontal, 8)
+                .frame(height: 26)
                 .background(accent)
                 .clipShape(Capsule())
             }
@@ -182,8 +213,8 @@ struct BlockLiveActivityWidget: Widget {
                 Label("End", systemImage: "stop.fill")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.9))
-                    .padding(.horizontal, 10)
-                    .frame(height: 28)
+                    .padding(.horizontal, 8)
+                    .frame(height: 26)
                     .background(.white.opacity(0.12))
                     .clipShape(Capsule())
                     .overlay {
@@ -347,21 +378,32 @@ private let previewState = BlockActivityAttributes.ContentState(
     pausedAt: nil
 )
 
+private let previewLongState = BlockActivityAttributes.ContentState(
+    blockName: "Physics Revision and Practice",
+    startDate: Date().addingTimeInterval(-35 * 60),
+    endDate: Date().addingTimeInterval(3 * 60 * 60),
+    timeLabel: "18:35 – 22:10",
+    pausedAt: nil
+)
+
 #Preview("Lock Screen", as: .content, using: previewAttributes) {
     BlockLiveActivityWidget()
 } contentStates: {
     previewState
+    previewLongState
 }
 
 #Preview("Dynamic Island Compact", as: .dynamicIsland(.compact), using: previewAttributes) {
     BlockLiveActivityWidget()
 } contentStates: {
     previewState
+    previewLongState
 }
 
 #Preview("Dynamic Island Expanded", as: .dynamicIsland(.expanded), using: previewAttributes) {
     BlockLiveActivityWidget()
 } contentStates: {
     previewState
+    previewLongState
 }
 #endif
