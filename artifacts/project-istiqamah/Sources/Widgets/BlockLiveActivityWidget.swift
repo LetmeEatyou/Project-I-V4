@@ -18,8 +18,7 @@ struct BlockLiveActivityWidget: Widget {
                 DynamicIslandExpandedRegion(.leading) {
                     activityIcon(context, size: 19)
                         .frame(width: 24, height: 24)
-                        .padding(.leading, 12)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.leading, 2)
                 }
 
                 DynamicIslandExpandedRegion(.trailing) {
@@ -30,8 +29,7 @@ struct BlockLiveActivityWidget: Widget {
                             .font(.system(size: 8, weight: .medium))
                             .foregroundStyle(.secondary)
                     }
-                    .padding(.trailing, 12)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .padding(.trailing, 2)
                 }
 
                 DynamicIslandExpandedRegion(.bottom) {
@@ -56,9 +54,9 @@ struct BlockLiveActivityWidget: Widget {
                             activityActions(context)
                         }
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.top, 4)
-                    .padding(.bottom, 8)
+                    .padding(.horizontal, 14)
+                    .padding(.top, 2)
+                    .padding(.bottom, 10)
                 }
             } compactLeading: {
                 HStack(spacing: 4) {
@@ -69,13 +67,11 @@ struct BlockLiveActivityWidget: Widget {
                         .lineLimit(1)
                         .minimumScaleFactor(0.75)
                 }
-                .padding(.leading, 4)
-                .frame(maxWidth: .infinity, alignment: .trailing)
+                .frame(maxWidth: 48, alignment: .leading)
                 .accessibilityLabel("\(blockTitle(context)), \(statusLabel(context))")
             } compactTrailing: {
                 compactTimer(context)
-                    .padding(.trailing, 4)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(width: 44, alignment: .trailing)
             } minimal: {
                 activityIcon(context, size: 13)
                     .frame(width: 18, height: 18)
@@ -86,9 +82,10 @@ struct BlockLiveActivityWidget: Widget {
     }
 
     private func lockScreen(_ context: ActivityViewContext<BlockActivityAttributes>) -> some View {
-        VStack(spacing: 12) {
-            HStack(spacing: 11) {
-                activityIcon(context, size: 24)
+        VStack(spacing: 10) {
+            HStack(spacing: 10) {
+                activityIcon(context, size: 20)
+                    .frame(width: 28, height: 28)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(statusLabel(context))
                         .font(.caption2.weight(.semibold))
@@ -99,21 +96,22 @@ struct BlockLiveActivityWidget: Widget {
                 }
                 Spacer(minLength: 10)
                 countdown(context)
-                    .font(.title3.monospacedDigit().weight(.semibold))
+                    .font(.system(size: 20, weight: .semibold, design: .monospaced))
+                    .frame(minWidth: 64, alignment: .trailing)
             }
 
             progress(context)
                 .tint(accent)
 
             HStack(spacing: 8) {
-                Text(context.isStale ? "Completed" : context.state.timeLabel)
+                Text(lockScreenTimeLabel(context))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
                 activityActions(context)
             }
         }
-        .padding(16)
+        .padding(14)
     }
 
     @ViewBuilder
@@ -220,6 +218,12 @@ struct BlockLiveActivityWidget: Widget {
 
     private func compactTitle(_ context: ActivityViewContext<BlockActivityAttributes>) -> String {
         context.isStale ? "Done" : context.state.blockName
+    }
+
+    private func lockScreenTimeLabel(_ context: ActivityViewContext<BlockActivityAttributes>) -> String {
+        if context.isStale { return "Completed" }
+        if context.state.isPaused { return "Paused · \(context.state.timeLabel)" }
+        return context.state.timeLabel
     }
 
     private func progressValue(

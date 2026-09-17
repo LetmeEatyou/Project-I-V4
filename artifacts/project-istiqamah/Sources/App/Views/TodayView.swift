@@ -22,9 +22,14 @@ struct TodayView: View {
         }.sorted { $0.start < $1.start }
     }
 
-    private var runningBlock: ScheduledBlock? {
+    private var featuredBlock: ScheduledBlock? {
         guard isToday else { return nil }
-        return DateTools.activeBlock(in: store.blocks, at: now)
+        if let running = DateTools.activeBlock(in: store.blocks, at: now) {
+            return running
+        }
+        return selectedSchedule.first {
+            now < $0.start && !$0.block.completedDates.contains($0.dateKey)
+        }
     }
 
     var body: some View {
@@ -32,9 +37,11 @@ struct TodayView: View {
             ScrollView {
                 VStack(spacing: 20) {
                     dateCard
-                    if let runningBlock {
-                        focusCard(runningBlock)
-                        actionsCard(runningBlock)
+                    if let featuredBlock {
+                        focusCard(featuredBlock)
+                        if phase(for: featuredBlock) == .running {
+                            actionsCard(featuredBlock)
+                        }
                     } else {
                         startBlockCard
                     }
@@ -55,9 +62,9 @@ struct TodayView: View {
             Image(systemName: "play.circle.fill")
                 .font(.system(size: 38))
                 .foregroundStyle(AppTheme.primary)
-            Text("No block is running")
+            Text("No block is scheduled")
                 .font(.headline)
-            Text("Start a block or adjust its time in Blocks.")
+            Text("Create a block or adjust its time in Blocks.")
                 .font(.subheadline)
                 .foregroundStyle(AppTheme.muted)
                 .multilineTextAlignment(.center)
@@ -140,7 +147,10 @@ struct TodayView: View {
             ProgressView(value: progress)
                 .tint(AppTheme.primary)
             HStack {
-                Text("\(item.block.startTime) – \(item.block.endTime)")
+                Text(pausedAt == nil
+                    ? "\(item.block.startTime) – \(item.block.endTime)"
+                    : "Paused · slot ends at \(item.block.endTime)"
+                )
                     .foregroundStyle(AppTheme.muted)
                 Spacer()
                 if phase == .running {
@@ -150,12 +160,13 @@ struct TodayView: View {
                     .buttonStyle(.bordered)
                     .tint(AppTheme.primary)
                 }
-                Button(completed ? "Completed" : phase == .running ? "End" : "Mark complete") {
-                    store.toggleBlock(item.block.id, dateKey: item.dateKey)
+                if phase == .running {
+                    Button(completed ? "Completed" : "End") {
+                        store.toggleBlock(item.block.id, dateKey: item.dateKey)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(AppTheme.primary)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(AppTheme.primary)
-                .disabled(now < item.start && !completed)
             }
             .font(.caption)
         }

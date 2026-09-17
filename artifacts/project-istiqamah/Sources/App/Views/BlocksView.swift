@@ -7,8 +7,8 @@ struct BlocksView: View {
     var body: some View {
         NavigationStack {
             List {
-                ForEach(store.blocks) { block in
-                    Button { draft = block } label: {
+                Section {
+                    ForEach(store.blocks) { block in
                         HStack(spacing: 14) {
                             Image(systemName: "clock")
                                 .foregroundStyle(AppTheme.primary)
@@ -29,25 +29,29 @@ struct BlocksView: View {
                                 .accessibilityHidden(true)
                         }
                         .padding(.vertical, 6)
-                    }
-                    .draggable(block.id.uuidString)
-                    .dropDestination(for: String.self) { identifiers, location in
-                        guard let identifier = identifiers.first,
-                              let sourceID = UUID(uuidString: identifier) else { return false }
-                        store.moveBlock(
-                            sourceID,
-                            relativeTo: block.id,
-                            placeAfter: location.y > 30
-                        )
-                        return true
-                    }
-                    .accessibilityHint("Double-tap to edit. Touch and hold, then drag to reorder.")
-                    .listRowBackground(AppTheme.card)
-                    .swipeActions {
-                        Button(role: .destructive) { store.remove(block) } label: {
-                            Label("Delete", systemImage: "trash")
+                        .contentShape(Rectangle())
+                        .onTapGesture { draft = block }
+                        .draggable(block.id.uuidString)
+                        .dropDestination(for: String.self) { identifiers, _ in
+                            guard let identifier = identifiers.first,
+                                  let sourceID = UUID(uuidString: identifier) else { return false }
+                            withAnimation(.snappy) {
+                                store.swapBlockTimeSlots(sourceID, with: block.id)
+                            }
+                            return true
+                        }
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityAction { draft = block }
+                        .accessibilityHint("Double-tap to edit. Touch and hold, then drag onto another block to swap time slots.")
+                        .listRowBackground(AppTheme.card)
+                        .swipeActions {
+                            Button(role: .destructive) { store.remove(block) } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
                         }
                     }
+                } footer: {
+                    Text("Touch and hold a block, then drop it on another block to swap their time slots.")
                 }
             }
             .scrollContentBackground(.hidden)
@@ -61,7 +65,7 @@ struct BlocksView: View {
                 }
             }
             .sheet(item: $draft) { block in
-                BlockEditor(block: block) { saved in
+                BlockEditor(block: block, existingBlocks: store.blocks) { saved in
                     if store.blocks.contains(where: { $0.id == saved.id }) {
                         store.update(saved)
                     } else {
@@ -78,10 +82,16 @@ private struct BlockEditor: View {
     @Environment(\.dismiss) private var dismiss
     @State private var block: FocusBlock
     @State private var errorMessage: String?
+    let existingBlocks: [FocusBlock]
     let onSave: (FocusBlock) -> Void
 
-    init(block: FocusBlock, onSave: @escaping (FocusBlock) -> Void) {
+    init(
+        block: FocusBlock,
+        existingBlocks: [FocusBlock],
+        onSave: @escaping (FocusBlock) -> Void
+    ) {
         _block = State(initialValue: block)
+        self.existingBlocks = existingBlocks
         self.onSave = onSave
     }
 
@@ -145,6 +155,12 @@ private struct BlockEditor: View {
               DateTools.isValid(time: block.startTime),
               DateTools.isValid(time: block.endTime) else {
             errorMessage = "Add a name and valid 24-hour times such as 05:00."
+            return
+        }
+        if let overlappingBlock = existingBlocks.first(where: {
+            $0.id != block.id && DateTools.overlaps(block, $0)
+        }) {
+            errorMessage = "This time overlaps \(overlappingBlock.name). Choose an open time slot."
             return
         }
         onSave(block)

@@ -78,16 +78,17 @@ final class AppStore: ObservableObject {
         changed()
     }
 
-    func moveBlock(_ blockID: UUID, relativeTo targetID: UUID, placeAfter: Bool) {
+    func swapBlockTimeSlots(_ blockID: UUID, with targetID: UUID) {
         guard blockID != targetID,
               let sourceIndex = blocks.firstIndex(where: { $0.id == blockID }),
-              blocks.contains(where: { $0.id == targetID }) else { return }
-        let previousOrder = blocks.map(\.id)
-        let movingBlock = blocks.remove(at: sourceIndex)
-        guard let targetIndex = blocks.firstIndex(where: { $0.id == targetID }) else { return }
-        let destination = targetIndex + (placeAfter ? 1 : 0)
-        blocks.insert(movingBlock, at: min(destination, blocks.endIndex))
-        guard blocks.map(\.id) != previousOrder else { return }
+              let targetIndex = blocks.firstIndex(where: { $0.id == targetID }) else { return }
+        let sourceStart = blocks[sourceIndex].startTime
+        let sourceEnd = blocks[sourceIndex].endTime
+        blocks[sourceIndex].startTime = blocks[targetIndex].startTime
+        blocks[sourceIndex].endTime = blocks[targetIndex].endTime
+        blocks[targetIndex].startTime = sourceStart
+        blocks[targetIndex].endTime = sourceEnd
+        blocks.swapAt(sourceIndex, targetIndex)
         changed()
     }
 

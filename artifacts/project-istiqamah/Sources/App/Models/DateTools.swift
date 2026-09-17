@@ -42,6 +42,18 @@ enum DateTools {
         minutes(time) != nil && time.count == 5
     }
 
+    static func overlaps(_ first: FocusBlock, _ second: FocusBlock) -> Bool {
+        guard let firstStart = minutes(first.startTime),
+              let firstEndValue = minutes(first.endTime),
+              let secondStart = minutes(second.startTime),
+              let secondEndValue = minutes(second.endTime) else { return false }
+        let firstEnd = firstEndValue > firstStart ? firstEndValue : firstEndValue + 1_440
+        let secondEnd = secondEndValue > secondStart ? secondEndValue : secondEndValue + 1_440
+        return [-1_440, 0, 1_440].contains { offset in
+            firstStart < secondEnd + offset && secondStart + offset < firstEnd
+        }
+    }
+
     static func window(for block: FocusBlock, on day: Date) -> DateInterval? {
         guard let startMinutes = minutes(block.startTime), let endMinutes = minutes(block.endTime) else {
             return nil
