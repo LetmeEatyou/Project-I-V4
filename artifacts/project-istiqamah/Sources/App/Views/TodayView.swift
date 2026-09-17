@@ -177,29 +177,13 @@ struct TodayView: View {
     @ViewBuilder
     private func actionsCard(_ item: ScheduledBlock) -> some View {
         if !item.block.actions.isEmpty {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 8) {
                 Text("ACTIONS")
                     .font(.caption2.bold())
                     .tracking(1.4)
                     .foregroundStyle(AppTheme.muted)
-                    .padding(.bottom, 8)
                 ForEach(item.block.actions) { action in
-                    let completed = action.completedDates.contains(item.dateKey)
-                    Button {
-                        store.toggleAction(action.id, in: item.block.id, dateKey: item.dateKey)
-                    } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: completed ? "checkmark.circle.fill" : "circle")
-                                .foregroundStyle(completed ? AppTheme.primary : AppTheme.muted)
-                            Text(action.name)
-                                .strikethrough(completed)
-                                .foregroundStyle(.white)
-                            Spacer()
-                        }
-                        .padding(.vertical, 10)
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(now < item.start && !completed)
+                    actionRow(action, in: item)
                 }
             }
             .padding(18)
@@ -208,71 +192,146 @@ struct TodayView: View {
     }
 
     private var dayList: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(isToday ? "TODAY'S SYSTEM" : "SELECTED DAY'S SYSTEM")
-                .font(.caption2.bold())
-                .tracking(1.4)
-                .foregroundStyle(AppTheme.muted)
-            ForEach(selectedSchedule) { item in
-                let completed = item.block.completedDates.contains(item.dateKey)
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(spacing: 12) {
-                        Image(systemName: completed ? "checkmark.circle.fill" : "circle")
-                            .foregroundStyle(AppTheme.primary)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(item.block.name).font(.subheadline.weight(.medium))
-                            Text("\(item.block.startTime) – \(item.block.endTime)")
-                                .font(.caption)
-                                .foregroundStyle(AppTheme.muted)
-                        }
-                        Spacer()
-                        if now >= item.end && !completed {
-                            Button("Complete") {
-                                store.toggleBlock(item.block.id, dateKey: item.dateKey)
-                            }
-                            .font(.caption.weight(.semibold))
-                            .buttonStyle(.bordered)
-                            .tint(AppTheme.primary)
-                            .controlSize(.small)
-                        }
-                    }
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(isToday ? "TODAY'S SYSTEM" : "SELECTED DAY'S SYSTEM")
+                    .font(.caption2.bold())
+                    .tracking(1.4)
+                    .foregroundStyle(AppTheme.muted)
+                Spacer()
+                Text("\(selectedSchedule.count) \(selectedSchedule.count == 1 ? "BLOCK" : "BLOCKS")")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(AppTheme.primary)
+            }
+            .padding(.bottom, 8)
 
-                    if item.block.actions.isEmpty {
-                        Text("No actions")
-                            .font(.caption)
-                            .foregroundStyle(AppTheme.muted)
-                            .padding(.leading, 36)
-                    } else {
-                        VStack(spacing: 8) {
-                            ForEach(item.block.actions) { action in
-                                let actionCompleted = action.completedDates.contains(item.dateKey)
-                                Button {
-                                    store.toggleAction(action.id, in: item.block.id, dateKey: item.dateKey)
-                                } label: {
-                                    HStack(spacing: 9) {
-                                        Image(systemName: actionCompleted ? "checkmark.circle.fill" : "xmark.circle.fill")
-                                            .foregroundStyle(actionCompleted ? AppTheme.primary : Color.red)
-                                        Text(action.name)
-                                            .font(.caption)
-                                            .foregroundStyle(.white)
-                                        Spacer()
-                                        Text(actionCompleted ? "Done" : "Undone")
-                                            .font(.caption2.weight(.semibold))
-                                            .foregroundStyle(actionCompleted ? AppTheme.primary : Color.red)
-                                    }
-                                }
-                                .buttonStyle(.plain)
-                                .disabled(now < item.start && !actionCompleted)
-                            }
-                        }
-                        .padding(.leading, 36)
-                    }
+            ForEach(selectedSchedule) { item in
+                systemBlockRow(item)
+
+                if item.id != selectedSchedule.last?.id {
+                    Divider()
+                        .overlay(AppTheme.border)
+                        .padding(.leading, 54)
                 }
-                .padding(.vertical, 4)
             }
         }
         .padding(18)
         .istiqamahCard()
+    }
+
+    private func systemBlockRow(_ item: ScheduledBlock) -> some View {
+        let completed = item.block.completedDates.contains(item.dateKey)
+        let status = systemStatus(for: item, completed: completed)
+        let canToggleCompletion = completed || now >= item.end
+
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Button {
+                    withAnimation(.snappy(duration: 0.22)) {
+                        store.toggleBlock(item.block.id, dateKey: item.dateKey)
+                    }
+                } label: {
+                    Image(systemName: completed ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 27, weight: .medium))
+                        .foregroundStyle(completed ? AppTheme.primary : AppTheme.muted)
+                        .contentTransition(.symbolEffect(.replace))
+                        .frame(width: 44, height: 44)
+                        .background(completed ? AppTheme.primary.opacity(0.10) : Color.clear)
+                        .clipShape(Circle())
+                }
+                .buttonStyle(PressedScaleButtonStyle())
+                .disabled(!canToggleCompletion)
+                .opacity(canToggleCompletion ? 1 : 0.55)
+                .accessibilityLabel(completed
+                    ? "Mark \(item.block.name) incomplete"
+                    : "Mark \(item.block.name) complete"
+                )
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(item.block.name)
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                    Label("\(item.block.startTime) – \(item.block.endTime)", systemImage: "clock")
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.muted)
+                }
+
+                Spacer(minLength: 8)
+
+                Text(status.title)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(status.color)
+                    .padding(.horizontal, 9)
+                    .frame(minHeight: 26)
+                    .background(status.color.opacity(0.12))
+                    .clipShape(Capsule())
+            }
+
+            if item.block.actions.isEmpty {
+                Text("No actions")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.muted)
+                    .padding(.leading, 54)
+            } else {
+                VStack(spacing: 4) {
+                    ForEach(item.block.actions) { action in
+                        actionRow(action, in: item)
+                    }
+                }
+                .padding(.leading, 54)
+            }
+        }
+        .padding(.vertical, 10)
+    }
+
+    private func actionRow(_ action: BlockAction, in item: ScheduledBlock) -> some View {
+        let completed = action.completedDates.contains(item.dateKey)
+        let canToggle = completed || now >= item.start
+
+        return HStack(spacing: 10) {
+            Text(action.name)
+                .font(.subheadline)
+                .foregroundStyle(completed ? AppTheme.muted : Color.white)
+                .strikethrough(completed, color: AppTheme.muted)
+                .lineLimit(2)
+
+            Spacer(minLength: 8)
+
+            Button {
+                withAnimation(.snappy(duration: 0.22)) {
+                    store.toggleAction(action.id, in: item.block.id, dateKey: item.dateKey)
+                }
+            } label: {
+                Label(completed ? "Done" : "Mark done", systemImage: completed ? "checkmark" : "circle")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(completed ? AppTheme.primary : Color.white.opacity(0.88))
+                    .padding(.horizontal, 11)
+                    .frame(minHeight: 36)
+                    .background(completed ? AppTheme.primary.opacity(0.14) : AppTheme.raised)
+                    .clipShape(Capsule())
+                    .overlay {
+                        Capsule()
+                            .stroke(completed ? AppTheme.primary.opacity(0.24) : AppTheme.border)
+                    }
+                    .contentTransition(.symbolEffect(.replace))
+            }
+            .buttonStyle(PressedScaleButtonStyle())
+            .disabled(!canToggle)
+            .opacity(canToggle ? 1 : 0.5)
+            .accessibilityLabel(completed
+                ? "Mark \(action.name) incomplete"
+                : "Mark \(action.name) done"
+            )
+        }
+        .frame(minHeight: 44)
+    }
+
+    private func systemStatus(for item: ScheduledBlock, completed: Bool) -> SystemBlockStatus {
+        if completed { return .completed }
+        if now < item.start { return .upcoming }
+        if now < item.end { return .running }
+        return .incomplete
     }
 
     private func moveDay(_ amount: Int) {
@@ -284,6 +343,39 @@ struct TodayView: View {
         if now < item.start { return .upcoming }
         if now < item.end { return .running }
         return .ended
+    }
+}
+
+private struct PressedScaleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .opacity(configuration.isPressed ? 0.82 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+}
+
+private enum SystemBlockStatus {
+    case completed
+    case running
+    case upcoming
+    case incomplete
+
+    var title: String {
+        switch self {
+        case .completed: "DONE"
+        case .running: "RUNNING"
+        case .upcoming: "UPCOMING"
+        case .incomplete: "UNDONE"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .completed, .running: AppTheme.primary
+        case .upcoming: AppTheme.muted
+        case .incomplete: .red
+        }
     }
 }
 

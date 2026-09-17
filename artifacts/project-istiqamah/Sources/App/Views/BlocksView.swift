@@ -1,8 +1,11 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct BlocksView: View {
     @EnvironmentObject private var store: AppStore
     @State private var draft: FocusBlock?
+    @State private var draggedBlockID: UUID?
+    @State private var dropTargetID: UUID?
 
     var body: some View {
         NavigationStack {
@@ -31,19 +34,29 @@ struct BlocksView: View {
                         .padding(.vertical, 6)
                         .contentShape(Rectangle())
                         .onTapGesture { draft = block }
-                        .draggable(block.id.uuidString)
-                        .dropDestination(for: String.self) { identifiers, _ in
-                            guard let identifier = identifiers.first,
-                                  let sourceID = UUID(uuidString: identifier) else { return false }
-                            withAnimation(.snappy) {
-                                store.swapBlockTimeSlots(sourceID, with: block.id)
-                            }
-                            return true
+                        .onDrag {
+                            draggedBlockID = block.id
+                            dropTargetID = nil
+                            return NSItemProvider(object: block.id.uuidString as NSString)
                         }
+                        .onDrop(
+                            of: [UTType.text],
+                            delegate: BlockSlotDropDelegate(
+                                targetBlockID: block.id,
+                                draggedBlockID: $draggedBlockID,
+                                dropTargetID: $dropTargetID,
+                                onSwap: store.swapBlockTimeSlots
+                            )
+                        )
                         .accessibilityAddTraits(.isButton)
                         .accessibilityAction { draft = block }
                         .accessibilityHint("Double-tap to edit. Touch and hold, then drag onto another block to swap time slots.")
-                        .listRowBackground(AppTheme.card)
+                        .listRowBackground(
+                            dropTargetID == block.id
+                                ? AppTheme.primary.opacity(0.14)
+                                : AppTheme.card
+                        )
+                        .animation(.easeOut(duration: 0.14), value: dropTargetID)
                         .swipeActions {
                             Button(role: .destructive) { store.remove(block) } label: {
                                 Label("Delete", systemImage: "trash")
@@ -75,6 +88,46 @@ struct BlocksView: View {
                 }
             }
         }
+    }
+}
+
+private struct BlockSlotDropDelegate: DropDelegate {
+    let targetBlockID: UUID
+    @Binding var draggedBlockID: UUID?
+    @Binding var dropTargetID: UUID?
+    let onSwap: (UUID, UUID) -> Void
+
+    func validateDrop(info: DropInfo) -> Bool {
+        guard let draggedBlockID else { return false }
+        return draggedBlockID != targetBlockID && info.hasItemsConforming(to: [UTType.text])
+    }
+
+    func dropEntered(info: DropInfo) {
+        guard draggedBlockID != nil, draggedBlockID != targetBlockID else { return }
+        dropTargetID = targetBlockID
+    }
+
+    func dropExited(info: DropInfo) {
+        if dropTargetID == targetBlockID {
+            dropTargetID = nil
+        }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        defer {
+            draggedBlockID = nil
+            dropTargetID = nil
+        }
+        guard let sourceBlockID = draggedBlockID,
+              sourceBlockID != targetBlockID else { return false }
+        withAnimation(.snappy) {
+            onSwap(sourceBlockID, targetBlockID)
+        }
+        return true
     }
 }
 
