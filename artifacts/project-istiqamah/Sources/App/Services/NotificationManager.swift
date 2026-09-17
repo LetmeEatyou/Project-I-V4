@@ -1,3 +1,4 @@
+import ActivityKit
 import Foundation
 import UserNotifications
 
@@ -102,6 +103,7 @@ actor NotificationManager {
         guard generation == syncGeneration else { return "Superseded by a newer sync" }
 
         let schedule = DateTools.schedule(for: blocks, around: now)
+        let activityBackedStarts = activityBackedBlockKeys()
         var count = 0
         var failed = 0
         var attempted = 0
@@ -124,11 +126,15 @@ actor NotificationManager {
                     "complete",
                     item.end,
                     "\(item.block.name) has ended",
-                    "Tap to record whether you completed this block."
+                    "Open to review this block."
                 )
             ]
 
-            for alert in alerts where alert.date > now && attempted < 60 {
+            for alert in alerts {
+                if alert.kind == "start", activityBackedStarts.contains(item.id) {
+                    continue
+                }
+                guard alert.date > now, attempted < 60 else { continue }
                 guard generation == syncGeneration else { return "Superseded by a newer sync" }
                 attempted += 1
                 let content = UNMutableNotificationContent()
@@ -146,7 +152,7 @@ actor NotificationManager {
                     "blockName": item.block.name,
                     "blockEnd": item.end.timeIntervalSince1970,
                     "date": item.dateKey,
-                    "action": alert.kind == "complete" ? "complete" : "open",
+                    "action": "open",
                     "snoozeMinutes": preferences.snoozeMinutes,
                     "reminderSound": preferences.reminderSound.rawValue
                 ]
@@ -176,6 +182,16 @@ actor NotificationManager {
             return "Scheduled \(count) reminders; \(failed) failed"
         }
         return "Scheduled \(count) reminders"
+    }
+
+    private func activityBackedBlockKeys() -> Set<String> {
+        guard #available(iOS 26.0, *) else { return [] }
+        return Set(Activity<BlockActivityAttributes>.activities.compactMap { activity in
+            guard activity.activityState == .active || activity.activityState == .pending else {
+                return nil
+            }
+            return "\(activity.attributes.blockID.uuidString):\(activity.attributes.dateKey)"
+        })
     }
 
     @discardableResult

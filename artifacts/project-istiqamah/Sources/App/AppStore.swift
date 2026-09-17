@@ -292,18 +292,18 @@ final class AppStore: ObservableObject {
         refreshGeneration &+= 1
         let generation = refreshGeneration
         Task { [weak self] in
-            async let notificationSync = NotificationManager.shared.sync(
-                blocks: currentBlocks,
-                preferences: currentPreferences
-            )
-            async let activitySync = LiveActivityManager.shared.sync(
+            let activityReport = await LiveActivityManager.shared.sync(
                 blocks: currentBlocks,
                 pausedBlocks: currentPausedBlocks,
                 now: now
             )
-            let notificationMessage = await notificationSync
-            let activityReport = await activitySync
-            if let self, generation == self.refreshGeneration {
+            guard let self, generation == self.refreshGeneration else { return }
+            let notificationMessage = await NotificationManager.shared.sync(
+                blocks: currentBlocks,
+                preferences: currentPreferences,
+                now: now
+            )
+            if generation == self.refreshGeneration {
                 self.notificationSyncStatus = notificationMessage
                 if let activityReport {
                     self.liveActivityStatus = activityReport.message

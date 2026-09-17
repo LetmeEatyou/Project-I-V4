@@ -30,7 +30,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         let data = response.notification.request.content.userInfo
         let blockID = (data["blockID"] as? String).flatMap(UUID.init(uuidString:))
         let dateKey = data["date"] as? String
-        let action = data["action"] as? String
+        let requestedAction = data["action"] as? String
         let responseAction = response.actionIdentifier
         if responseAction == NotificationManager.acknowledgeActionIdentifier {
             completionHandler()
@@ -61,6 +61,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
             return
         }
         Task { @MainActor in
+            // Opening a notification is navigation, never implicit completion.
+            let action = responseAction == UNNotificationDefaultActionIdentifier &&
+                requestedAction == "complete" ? nil : requestedAction
             DeepLinkRouter.shared.open(blockID: blockID, dateKey: dateKey, action: action)
             completionHandler()
         }

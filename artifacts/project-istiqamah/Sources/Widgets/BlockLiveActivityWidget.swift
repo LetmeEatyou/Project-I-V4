@@ -70,16 +70,9 @@ struct BlockLiveActivityWidget: Widget {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
             } compactLeading: {
-                HStack(spacing: 3) {
-                    activityIcon(context, size: 10)
-                        .frame(width: 12, height: 12)
-                    Text(compactTitle(context))
-                        .font(.system(size: 11, weight: .semibold, design: .default))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.85)
-                        .truncationMode(.tail)
-                }
-                .accessibilityLabel("\(blockTitle(context)), \(statusLabel(context))")
+                activityIcon(context, size: 12)
+                    .frame(width: 16, height: 16)
+                    .accessibilityLabel("\(blockTitle(context)), \(statusLabel(context))")
             } compactTrailing: {
                 compactTimer(context)
             } minimal: {
@@ -243,17 +236,8 @@ struct BlockLiveActivityWidget: Widget {
 
     @ViewBuilder
     private func minimalContent(_ context: ActivityViewContext<BlockActivityAttributes>) -> some View {
-        if context.isStale {
-            activityIcon(context, size: 12)
-                .frame(width: 16, height: 16)
-        } else {
-            countdown(context)
-                .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                .minimumScaleFactor(0.65)
-                .lineLimit(1)
-                .foregroundStyle(accent)
-                .accessibilityLabel("Time remaining")
-        }
+        activityIcon(context, size: 12)
+            .frame(width: 16, height: 16)
     }
 
     @ViewBuilder
@@ -328,10 +312,6 @@ struct BlockLiveActivityWidget: Widget {
 
     private func blockTitle(_ context: ActivityViewContext<BlockActivityAttributes>) -> String {
         context.isStale ? "Block complete" : context.state.blockName
-    }
-
-    private func compactTitle(_ context: ActivityViewContext<BlockActivityAttributes>) -> String {
-        context.isStale ? "Done" : context.state.blockName
     }
 
     private func lockScreenTimeLabel(_ context: ActivityViewContext<BlockActivityAttributes>) -> String {
@@ -416,6 +396,13 @@ private let previewLongState = BlockActivityAttributes.ContentState(
 }
 
 #Preview("Dynamic Island Compact", as: .dynamicIsland(.compact), using: previewAttributes) {
+    BlockLiveActivityWidget()
+} contentStates: {
+    previewState
+    previewLongState
+}
+
+#Preview("Dynamic Island Minimal", as: .dynamicIsland(.minimal), using: previewAttributes) {
     BlockLiveActivityWidget()
 } contentStates: {
     previewState
