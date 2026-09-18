@@ -7,6 +7,12 @@ import WidgetKit
 struct BlockLiveActivityWidget: Widget {
     private let accent = Color(red: 0.40, green: 0.43, blue: 0.96)
 
+    private enum CompactMetrics {
+        static let iconPointSize: CGFloat = 12
+        static let iconFrameSize: CGFloat = 16
+        static let timerMinimumWidth: CGFloat = 40
+    }
+
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: BlockActivityAttributes.self) { context in
             lockScreen(context)
@@ -70,8 +76,7 @@ struct BlockLiveActivityWidget: Widget {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
             } compactLeading: {
-                activityIcon(context, size: 12)
-                    .frame(width: 16, height: 16)
+                compactIcon(context)
                     .accessibilityLabel("\(blockTitle(context)), \(statusLabel(context))")
             } compactTrailing: {
                 compactTimer(context)
@@ -230,14 +235,22 @@ struct BlockLiveActivityWidget: Widget {
             .font(.system(size: 12, weight: .semibold, design: .monospaced))
             .minimumScaleFactor(0.72)
             .lineLimit(1)
+            .frame(minWidth: CompactMetrics.timerMinimumWidth, alignment: .trailing)
             .foregroundStyle(accent)
             .accessibilityLabel("Time remaining")
     }
 
-    @ViewBuilder
+    private func compactIcon(_ context: ActivityViewContext<BlockActivityAttributes>) -> some View {
+        activityIcon(context, size: CompactMetrics.iconPointSize)
+            .frame(
+                width: CompactMetrics.iconFrameSize,
+                height: CompactMetrics.iconFrameSize
+            )
+            .fixedSize()
+    }
+
     private func minimalContent(_ context: ActivityViewContext<BlockActivityAttributes>) -> some View {
-        activityIcon(context, size: 12)
-            .frame(width: 16, height: 16)
+        compactIcon(context)
     }
 
     @ViewBuilder
